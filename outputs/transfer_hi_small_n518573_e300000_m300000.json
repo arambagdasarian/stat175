@@ -1,0 +1,249 @@
+{
+  "dataset_meta": {
+    "dataset": "amlworld_hi_small",
+    "num_nodes": 518573,
+    "num_edges": 300000,
+    "max_transactions_loaded": 300000,
+    "node_label_pos_rate": 6.749290842369348e-05,
+    "edge_label_pos_rate": 9.333333582617342e-05,
+    "node_feature_dim": 7,
+    "edge_feature_dim": 11,
+    "node_feature_entity_categories": [
+      [
+        "Corporation",
+        "Country",
+        "Direct",
+        "Individual",
+        "Partnership",
+        "Sole Proprietorship"
+      ]
+    ],
+    "edge_feature_payfmt_categories": [
+      [
+        "ACH",
+        "Bitcoin",
+        "Cash",
+        "Cheque",
+        "Credit Card",
+        "Reinvestment",
+        "Wire"
+      ]
+    ],
+    "t0": "2022-09-01 00:00:00",
+    "schema": {
+      "node_label": "derived is_sar_account (any endpoint of laundering tx)",
+      "edge_label": "is laundering",
+      "edge_amount_col": "amount paid",
+      "edge_time_col": "timestamp",
+      "edge_payfmt_col": "payment format",
+      "edge_direction": "account -> account.1"
+    }
+  },
+  "result": {
+    "device": "cpu",
+    "synthetic_meta": {
+      "generator": "degree_preserving_bootstrap",
+      "seed": 7,
+      "preserves": [
+        "in_degree_sequence",
+        "out_degree_sequence",
+        "marginal_node_feature_dist",
+        "marginal_edge_feature_dist"
+      ]
+    },
+    "node": {
+      "real_train_eval": {
+        "train": {
+          "roc_auc": 0.8889252906760509,
+          "pr_auc": 0.0003449731463268174,
+          "f1": 0.00036298958219899087
+        },
+        "val": {
+          "roc_auc": 0.9144968841086788,
+          "pr_auc": 0.0006322671392984361,
+          "f1": 0.0003798361278419882
+        },
+        "test": {
+          "roc_auc": 0.8768155370297924,
+          "pr_auc": 0.0003610358870141307,
+          "f1": 0.00038183553797899904
+        }
+      },
+      "transfer_eval_on_real_test": {
+        "roc_auc": 0.6535719795690097,
+        "pr_auc": 0.0002888899178973318,
+        "f1": 0.00015561174868702587
+      },
+      "drop_test": {
+        "roc_auc_drop": 0.22324355746078273,
+        "pr_auc_drop": 7.214596911679893e-05,
+        "f1_drop": 0.00022622378929197318
+      }
+    },
+    "edge": {
+      "real_train_eval": {
+        "train": {
+          "roc_auc": 0.9418763732914645,
+          "pr_auc": 0.29056761687595833,
+          "f1": 0.0008908119114278443
+        },
+        "val": {
+          "roc_auc": 0.9058221518459872,
+          "pr_auc": 0.8000353907134768,
+          "f1": 0.0007728721862621969
+        },
+        "test": {
+          "roc_auc": 0.9298207598537631,
+          "pr_auc": 0.4675613435408381,
+          "f1": 0.0009603380389897244
+        }
+      },
+      "synthetic_train_eval": {
+        "train": {
+          "roc_auc": 0.9453410006389421,
+          "pr_auc": 0.36141133066345443,
+          "f1": 0.0022253129346314327
+        },
+        "val": {
+          "roc_auc": 0.882130177514793,
+          "pr_auc": 0.6002088017299979,
+          "f1": 0.0016773832820799553
+        },
+        "test": {
+          "roc_auc": 0.9823985332111009,
+          "pr_auc": 0.5435226914094553,
+          "f1": 0.0022123893805309734
+        }
+      },
+      "transfer_eval_on_real_test": {
+        "roc_auc": 0.7385905257192387,
+        "pr_auc": 0.4584176271799488,
+        "f1": 0.0005034401745259272
+      },
+      "drop_test": {
+        "roc_auc_drop": 0.19123023413452445,
+        "pr_auc_drop": 0.009143716360889342,
+        "f1_drop": 0.00045689786446379715
+      }
+    },
+    "similarity": {
+      "degree": {
+        "real": {
+          "in_deg_mean": 0.5785106436316584,
+          "out_deg_mean": 0.5785106436316584
+        },
+        "syn": {
+          "in_deg_mean": 0.5785106436316584,
+          "out_deg_mean": 0.5785106436316584
+        },
+        "in_deg_hist_l1": 0.0
+      },
+      "clustering_undirected": {
+        "real": 0.0,
+        "syn": 3.425445167164022e-05
+      },
+      "path_length": {
+        "real": {
+          "mean": 2.929864636209814,
+          "median": 2.0,
+          "n_pairs": 11820
+        },
+        "syn": {
+          "mean": 8.75312195023155,
+          "median": 9.0,
+          "n_pairs": 63101102
+        }
+      },
+      "node_feature_ks": {
+        "ks_stat_mean": 0.00043581135153580863,
+        "ks_stat_max": 0.0014887007229453797,
+        "ks_pvalue_mean": 0.9447263500154293,
+        "per_dim": {
+          "ks_stat": [
+            0.0014887007229453797,
+            0.00029311205944004826,
+            0.0001619829802168571,
+            0.0,
+            6.36361707994082e-05,
+            0.0004878773094626476,
+            0.0005553702178863196
+          ],
+          "ks_pvalue": [
+            0.6130863042787833,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            0.9999999778895681,
+            0.9999981679396527
+          ]
+        }
+      },
+      "edge_feature_ks": {
+        "ks_stat_mean": 0.0008557575757575805,
+        "ks_stat_max": 0.0021966666666666246,
+        "ks_pvalue_mean": 0.9087660846860458,
+        "per_dim": {
+          "ks_stat": [
+            0.0021966666666666246,
+            0.0019066666666666121,
+            0.001083333333333325,
+            0.001093333333333335,
+            3.666666666668483e-05,
+            6.666666666710341e-06,
+            0.00022333333333335315,
+            0.0014766666666666817,
+            0.0005566666666667608,
+            0.0007499999999999729,
+            8.333333333332416e-05
+          ],
+          "ks_pvalue": [
+            0.4635050882576306,
+            0.6459106972533039,
+            0.9945232979281637,
+            0.9938371201389155,
+            1.0,
+            1.0,
+            1.0,
+            0.8986547454700046,
+            0.9999999999616871,
+            0.9999959825367984,
+            1.0
+          ]
+        }
+      },
+      "node_feature_corr": {
+        "corr_fro_norm": 0.006217383324663856,
+        "dims": 7
+      },
+      "edge_feature_corr": {
+        "corr_fro_norm": 0.016185406153558866,
+        "dims": 11
+      },
+      "label_rates": {
+        "node_pos_rate_real": 6.749291060259566e-05,
+        "node_pos_rate_syn": 6.170780397951603e-05,
+        "edge_pos_rate_real": 9.333333582617342e-05,
+        "edge_pos_rate_syn": 8.333333244081587e-05
+      }
+    },
+    "fraud_patterns": {
+      "node_degree_by_label": {
+        "real": {
+          "sar_in_mean": 2.257142857142857,
+          "sar_out_mean": 132.62857142857143,
+          "clean_in_mean": 0.5783973402142176,
+          "clean_out_mean": 0.5695975994044795,
+          "sar_frac": 6.749290842369348e-05
+        },
+        "syn": {
+          "sar_in_mean": 0.71875,
+          "sar_out_mean": 0.375,
+          "clean_in_mean": 0.578501989235181,
+          "clean_out_mean": 0.5785232026011443,
+          "sar_frac": 6.17078019873769e-05
+        }
+      }
+    }
+  }
+}
