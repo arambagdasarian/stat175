@@ -1,0 +1,44 @@
+meta_data :
+  variant: "Async"
+
+mlp_X :
+  hidden_t: 32
+  hidden_X: 256
+  hidden_Y: 32
+  num_mlp_layers: 2
+  dropout: 0.1
+
+gnn_E :
+  hidden_t: 32
+  hidden_X: 256
+  hidden_Y: 32
+  hidden_E: 64
+  num_gnn_layers: 2
+  dropout: 0.1
+
+diffusion :
+  T_X : 6
+  T_E : 9
+
+optimizer_X :
+  lr : 0.001
+  weight_decay : 0
+  amsgrad : true
+
+optimizer_E :
+  lr : 0.0003
+  weight_decay : 0
+  amsgrad : true
+
+lr_scheduler :
+  factor : 0.9
+  patience : 5
+  verbose : true
+
+train :
+  num_epochs : 200
+  val_every_epochs : 1
+  patient_epochs : 15
+  max_grad_norm : 10
+  batch_size : 4096
+  val_batch_size : 32768

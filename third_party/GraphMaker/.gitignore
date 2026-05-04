@@ -1,0 +1,6 @@
+__pycache__
+wandb
+cora_cpts/
+orca/
+downloaded_cpts/
+upload.py

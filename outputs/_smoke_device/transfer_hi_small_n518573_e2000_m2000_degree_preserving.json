@@ -1,0 +1,378 @@
+{
+  "dataset_meta": {
+    "dataset": "amlworld_hi_small",
+    "num_nodes": 518573,
+    "num_edges": 2000,
+    "max_transactions_loaded": 2000,
+    "node_label_pos_rate": 0.0,
+    "edge_label_pos_rate": 0.0,
+    "node_feature_dim": 7,
+    "edge_feature_dim": 11,
+    "node_feature_entity_categories": [
+      [
+        "Corporation",
+        "Country",
+        "Direct",
+        "Individual",
+        "Partnership",
+        "Sole Proprietorship"
+      ]
+    ],
+    "edge_feature_payfmt_categories": [
+      [
+        "ACH",
+        "Bitcoin",
+        "Cash",
+        "Cheque",
+        "Credit Card",
+        "Reinvestment",
+        "Wire"
+      ]
+    ],
+    "t0": "2022-09-01 00:00:00",
+    "schema": {
+      "node_label": "derived is_sar_account (any endpoint of laundering tx)",
+      "edge_label": "is laundering",
+      "edge_amount_col": "amount paid",
+      "edge_time_col": "timestamp",
+      "edge_payfmt_col": "payment format",
+      "edge_direction": "account -> account.1"
+    },
+    "split_policy": "size_matched_unstratified_plus_min1_then_round_robin_surplus_positives",
+    "split_node_label_counts": [
+      {
+        "split": "train",
+        "n": 311143,
+        "positives": 0,
+        "negatives": 311143
+      },
+      {
+        "split": "val",
+        "n": 103715,
+        "positives": 0,
+        "negatives": 103715
+      },
+      {
+        "split": "test",
+        "n": 103715,
+        "positives": 0,
+        "negatives": 103715
+      }
+    ],
+    "split_edge_label_counts": [
+      {
+        "split": "train",
+        "n": 1200,
+        "positives": 0,
+        "negatives": 1200
+      },
+      {
+        "split": "val",
+        "n": 400,
+        "positives": 0,
+        "negatives": 400
+      },
+      {
+        "split": "test",
+        "n": 400,
+        "positives": 0,
+        "negatives": 400
+      }
+    ]
+  },
+  "result": {
+    "device": "mps",
+    "training": {
+      "hidden_dim": 128,
+      "emb_dim": 128,
+      "num_layers": 2,
+      "dropout": 0.1,
+      "node_epochs": 1,
+      "edge_epochs": 1,
+      "syn_node_epochs": 1,
+      "syn_edge_epochs": 1,
+      "lr": 0.001,
+      "weight_decay": 0.0001,
+      "seed": 7,
+      "warm_start_from_real": false,
+      "use_dp": true,
+      "dp_noise_multiplier": 1.0,
+      "dp_max_grad_norm": 1.0,
+      "dp_delta": 1e-05,
+      "dp_batch_size": 64,
+      "dp_steps_per_epoch": 2,
+      "dp_num_hops": 2
+    },
+    "dp_accounting": {
+      "node_real": {
+        "dp_sgd": true,
+        "target": "node",
+        "subgraph_k_hop": 2,
+        "noise_multiplier": 1.0,
+        "max_grad_norm": 1.0,
+        "delta": 1e-05,
+        "batch_size": 64,
+        "steps_per_epoch": 2,
+        "epochs": 1,
+        "total_optimizer_steps": 2,
+        "sample_rate_approx": 0.0002056932021610642,
+        "epsilon_rdp": 0.48188951437198085,
+        "accountant": "opacus.RDPAccountant",
+        "note": "DP-SGD on random k-hop subgraphs; RDP epsilon is a standard DP-SGD accounting heuristic for this stochastic subgraph scheme (not a formal graph DP guarantee)."
+      },
+      "edge_real": {
+        "dp_sgd": true,
+        "target": "edge",
+        "subgraph_k_hop": 2,
+        "noise_multiplier": 1.0,
+        "max_grad_norm": 1.0,
+        "delta": 1e-05,
+        "batch_size": 64,
+        "steps_per_epoch": 2,
+        "epochs": 1,
+        "total_optimizer_steps": 2,
+        "sample_rate_approx": 0.05333333333333334,
+        "epsilon_rdp": 1.7779092443278308,
+        "accountant": "opacus.RDPAccountant",
+        "note": "Encoder + edge head trained with DP-SGD on subgraphs around sampled train edges; full-graph eval uses trained weights (not a per-edge DP guarantee on inference)."
+      },
+      "node_syn": {
+        "dp_sgd": true,
+        "target": "node",
+        "subgraph_k_hop": 2,
+        "noise_multiplier": 1.0,
+        "max_grad_norm": 1.0,
+        "delta": 1e-05,
+        "batch_size": 64,
+        "steps_per_epoch": 2,
+        "epochs": 1,
+        "total_optimizer_steps": 2,
+        "sample_rate_approx": 0.0002056932021610642,
+        "epsilon_rdp": 0.48188951437198085,
+        "accountant": "opacus.RDPAccountant",
+        "note": "DP-SGD on random k-hop subgraphs; RDP epsilon is a standard DP-SGD accounting heuristic for this stochastic subgraph scheme (not a formal graph DP guarantee)."
+      },
+      "edge_syn": {
+        "dp_sgd": true,
+        "target": "edge",
+        "subgraph_k_hop": 2,
+        "noise_multiplier": 1.0,
+        "max_grad_norm": 1.0,
+        "delta": 1e-05,
+        "batch_size": 64,
+        "steps_per_epoch": 2,
+        "epochs": 1,
+        "total_optimizer_steps": 2,
+        "sample_rate_approx": 0.05333333333333334,
+        "epsilon_rdp": 1.7779092443278308,
+        "accountant": "opacus.RDPAccountant",
+        "note": "Encoder + edge head trained with DP-SGD on subgraphs around sampled train edges; full-graph eval uses trained weights (not a per-edge DP guarantee on inference)."
+      }
+    },
+    "synthetic_meta": {
+      "generator": "degree_preserving_bootstrap",
+      "seed": 7,
+      "preserves": [
+        "in_degree_sequence",
+        "out_degree_sequence",
+        "marginal_node_feature_dist",
+        "marginal_edge_feature_dist"
+      ]
+    },
+    "node": {
+      "real_train_eval": {
+        "train": {
+          "roc_auc": null,
+          "pr_auc": null,
+          "f1": 0.0
+        },
+        "val": {
+          "roc_auc": null,
+          "pr_auc": null,
+          "f1": 0.0
+        },
+        "test": {
+          "roc_auc": null,
+          "pr_auc": null,
+          "f1": 0.0
+        }
+      },
+      "transfer_eval_on_real_test": {
+        "roc_auc": null,
+        "pr_auc": null,
+        "f1": 0.0
+      },
+      "drop_test": {
+        "roc_auc_drop": null,
+        "pr_auc_drop": null,
+        "f1_drop": 0.0
+      }
+    },
+    "edge": {
+      "real_train_eval": {
+        "train": {
+          "roc_auc": null,
+          "pr_auc": null,
+          "f1": 0.0
+        },
+        "val": {
+          "roc_auc": null,
+          "pr_auc": null,
+          "f1": 0.0
+        },
+        "test": {
+          "roc_auc": null,
+          "pr_auc": null,
+          "f1": 0.0
+        }
+      },
+      "synthetic_train_eval": {
+        "train": {
+          "roc_auc": null,
+          "pr_auc": null,
+          "f1": 0.0
+        },
+        "val": {
+          "roc_auc": null,
+          "pr_auc": null,
+          "f1": 0.0
+        },
+        "test": {
+          "roc_auc": null,
+          "pr_auc": null,
+          "f1": 0.0
+        }
+      },
+      "transfer_eval_on_real_test": {
+        "roc_auc": null,
+        "pr_auc": null,
+        "f1": 0.0
+      },
+      "drop_test": {
+        "roc_auc_drop": null,
+        "pr_auc_drop": null,
+        "f1_drop": 0.0
+      }
+    },
+    "similarity": {
+      "degree": {
+        "real": {
+          "in_deg_mean": 0.003856737624211056,
+          "out_deg_mean": 0.003856737624211056
+        },
+        "syn": {
+          "in_deg_mean": 0.003856737624211056,
+          "out_deg_mean": 0.003856737624211056
+        },
+        "in_deg_hist_l1": 0.0
+      },
+      "clustering_undirected": {
+        "real": 0.0,
+        "syn": 9.580713457368378e-06
+      },
+      "path_length": {
+        "real": {
+          "mean": 1.0,
+          "median": 1.0,
+          "n_pairs": 2
+        },
+        "syn": {
+          "mean": 8.187557321919902,
+          "median": 9.0,
+          "n_pairs": 6542
+        }
+      },
+      "node_feature_ks": {
+        "ks_stat_mean": 0.00034793282995561537,
+        "ks_stat_max": 0.0010972418540879936,
+        "ks_pvalue_mean": 0.9876332638676883,
+        "per_dim": {
+          "ks_stat": [
+            0.0010972418540879936,
+            0.0005977943317526657,
+            0.00024297447032528563,
+            1.157021287268023e-05,
+            7.327801486001206e-05,
+            0.0003413212797427345,
+            7.13496460479357e-05
+          ],
+          "ks_pvalue": [
+            0.9134468146821665,
+            0.9999860323916522,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ]
+        }
+      },
+      "edge_feature_ks": {
+        "ks_stat_mean": 0.010136363636363636,
+        "ks_stat_max": 0.02,
+        "ks_pvalue_mean": 0.9591689878617569,
+        "per_dim": {
+          "ks_stat": [
+            0.02,
+            0.0185,
+            0.014,
+            0.013,
+            0.0025,
+            0.0005,
+            0.008,
+            0.011,
+            0.0015,
+            0.019,
+            0.0035
+          ],
+          "ks_pvalue": [
+            0.8187536311788122,
+            0.8835917582147937,
+            0.9895783885519281,
+            0.9958989781495828,
+            1.0,
+            1.0,
+            0.9999999591834952,
+            0.9997333473531824,
+            0.9999999999999994,
+            0.8633028038475316,
+            0.9999999999999997
+          ]
+        }
+      },
+      "node_feature_corr": {
+        "corr_fro_norm": 0.00603165375638904,
+        "dims": 7
+      },
+      "edge_feature_corr": {
+        "corr_fro_norm": 0.2220335371369738,
+        "dims": 11
+      },
+      "label_rates": {
+        "node_pos_rate_real": 0.0,
+        "node_pos_rate_syn": 0.0,
+        "edge_pos_rate_real": 0.0,
+        "edge_pos_rate_syn": 0.0
+      }
+    },
+    "fraud_patterns": {
+      "node_degree_by_label": {
+        "real": {
+          "sar_in_mean": null,
+          "sar_out_mean": null,
+          "clean_in_mean": 0.003856737624211056,
+          "clean_out_mean": 0.003856737624211056,
+          "sar_frac": 0.0
+        },
+        "syn": {
+          "sar_in_mean": null,
+          "sar_out_mean": null,
+          "clean_in_mean": 0.003856737624211056,
+          "clean_out_mean": 0.003856737624211056,
+          "sar_frac": 0.0
+        }
+      }
+    },
+    "dp_composition_note": "Each training phase (real node, real edge, synthetic node, synthetic edge) uses its own RDPAccountant restart. Reported epsilon_rdp values are not automatically composed into a single joint (\u03b5, \u03b4) guarantee across phases."
+  }
+}

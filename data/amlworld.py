@@ -32,6 +32,35 @@ def _normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _transaction_csv_usecols(transactions_csv: Path) -> Optional[List[str]]:
+    """
+    Restrict CSV IO to columns required by `load_amlworld_hi_small_pyg` (~8 columns vs ~11+).
+    Returns original header spellings for `pd.read_csv(..., usecols=...)`, or None if the
+    schema looks unexpected (caller falls back to a full read).
+    """
+    peek = pd.read_csv(transactions_csv, nrows=0)
+    orig = list(peek.columns)
+    lower_to_orig: Dict[str, str] = {}
+    for c in orig:
+        lower_to_orig[c.strip().lower()] = c
+    need = [
+        "timestamp",
+        "from bank",
+        "to bank",
+        "account",
+        "account.1",
+        "amount paid",
+        "payment format",
+        "is laundering",
+    ]
+    cols: List[str] = []
+    for n in need:
+        if n not in lower_to_orig:
+            return None
+        cols.append(lower_to_orig[n])
+    return cols
+
+
 def resolve_hi_small_paths(data_dir: Path) -> AMLWorldPaths:
     accounts = data_dir / "HI-Small_accounts.csv"
     trans = data_dir / "HI-Small_Trans.csv"
@@ -64,7 +93,9 @@ def _allocate_positives_train_val_test(
     **no** positives in test. Here we reserve a minimal mass so each phase of training has
     signal when possible, then distribute the remainder by largest remainder on split sizes.
 
-    - ``n_pos == 1``: put the single positive in **test** (evaluation-focused; train has no positives).
+    - ``n_pos == 1``: put the single positive in **train** when possible so supervised training
+      sees at least one fraud label (putting it only in test made train folds all-negative and
+      produced useless models and ``null`` / ~0 metrics everywhere).
     - ``n_pos == 2``: **train** and **val** get one each (validation-driven early stopping).
     - ``n_pos >= 3``: **train**, **val**, and **test** each get at least one; any **surplus**
       positives are assigned in **test → val → train** round-robin so test is not starved.
@@ -73,7 +104,13 @@ def _allocate_positives_train_val_test(
     if n_pos <= 0:
         return 0, 0, 0
     if n_pos == 1:
-        return 0, 0, min(1, n_te)
+        if n_tr > 0:
+            return 1, 0, 0
+        if n_va > 0:
+            return 0, 1, 0
+        if n_te > 0:
+            return 0, 0, 1
+        return 0, 0, 0
     if n_pos == 2:
         return min(1, n_tr), min(1, n_va), 0
     p_tr, p_va, p_te = 1, 1, 1
@@ -140,7 +177,7 @@ def _build_splits_binary(
         return np.asarray(tr, dtype=np.int64), np.asarray(va, dtype=np.int64), np.asarray(te, dtype=np.int64)
 
     tr_ref, tmp_ref = train_test_split(idx_all, train_size=train_size, random_state=seed, stratify=None)
-    n_tr, n_tmp = len(tr_ref), len(tmp_ref)
+    n_tr = len(tr_ref)
     val_rel = val_size / (1.0 - train_size)
     va_ref, te_ref = train_test_split(tmp_ref, train_size=val_rel, random_state=seed, stratify=None)
     n_va, n_te = len(va_ref), len(te_ref)
@@ -195,9 +232,25 @@ def load_amlworld_hi_small_pyg(
 
     Edge labels (binary):
     - `y_edge`: `is laundering` (transaction fraud label)
+
+    Performance: ``max_transactions is None`` loads the full CSV (millions of rows). The loader
+    uses ``nrows`` + a tight ``usecols`` subset when possible. Pass ``max_transactions <= 0``
+    from CLIs to mean "no cap" (same as ``None``).
     """
+    if max_transactions is not None and int(max_transactions) <= 0:
+        max_transactions = None
+
     paths = resolve_hi_small_paths(data_dir)
-    trans = _normalize_cols(pd.read_csv(paths.transactions_csv))
+    nrows = int(max_transactions) if max_transactions is not None else None
+    usecols = _transaction_csv_usecols(paths.transactions_csv)
+    read_kw: Dict[str, Any] = {"nrows": nrows, "low_memory": False}
+    if usecols is not None:
+        read_kw["usecols"] = usecols
+    try:
+        trans = _normalize_cols(pd.read_csv(paths.transactions_csv, **read_kw))
+    except ValueError:
+        # usecols/schema mismatch — fall back to full read
+        trans = _normalize_cols(pd.read_csv(paths.transactions_csv, nrows=nrows, low_memory=False))
     accts = _normalize_cols(pd.read_csv(paths.accounts_csv))
 
     # Columns confirmed in the user's notebook
@@ -211,7 +264,7 @@ def load_amlworld_hi_small_pyg(
     bank_to_col = "to bank"
 
     if max_transactions is not None:
-        trans = trans.iloc[:max_transactions].copy()
+        trans = trans.iloc[: int(max_transactions)].copy()
 
     trans[label_col] = trans[label_col].astype(int)
     trans[time_col] = _parse_timestamp(trans[time_col])
@@ -226,7 +279,8 @@ def load_amlworld_hi_small_pyg(
     # Derive SAR-account node label using laundering transactions in the selected slice
     launder = trans.loc[trans[label_col] == 1]
     sar_accts = set(launder[orig_col].astype(str)) | set(launder[bene_col].astype(str))
-    y_node = np.array([1 if aid in sar_accts else 0 for aid in all_acct_ids], dtype=np.int64)
+    aid_ix = pd.Index(all_acct_ids.astype(str))
+    y_node = np.asarray(aid_ix.isin(sar_accts), dtype=np.int64)
 
     # Node features
     # We use: bank_id (standardized) + entity_type (one-hot).
@@ -234,11 +288,11 @@ def load_amlworld_hi_small_pyg(
     accts_dedup = accts.drop_duplicates(subset=[acct_id_col], keep="first").copy()
     accts_dedup["entity_type"] = _extract_entity_type(accts_dedup["entity name"])
 
-    bank_id_map = dict(zip(accts_dedup[acct_id_col].astype(str), accts_dedup["bank id"]))
-    ent_type_map = dict(zip(accts_dedup[acct_id_col].astype(str), accts_dedup["entity_type"]))
-
-    bank_id = np.array([bank_id_map.get(aid, np.nan) for aid in all_acct_ids], dtype=np.float64)
-    ent_type = np.array([ent_type_map.get(aid, "Unknown") for aid in all_acct_ids], dtype=object)
+    bank_id_ser = pd.Series(accts_dedup["bank id"].to_numpy(), index=accts_dedup[acct_id_col].astype(str))
+    ent_type_ser = pd.Series(accts_dedup["entity_type"].to_numpy(), index=accts_dedup[acct_id_col].astype(str))
+    aid_ser = pd.Series(all_acct_ids.astype(str))
+    bank_id = aid_ser.map(bank_id_ser).to_numpy(dtype=np.float64)
+    ent_type = aid_ser.map(ent_type_ser).fillna("Unknown").to_numpy(dtype=object)
 
     # Impute missing bank id with median of observed
     med = np.nanmedian(bank_id) if np.isfinite(bank_id).any() else 0.0

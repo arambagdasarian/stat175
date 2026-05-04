@@ -1,0 +1,403 @@
+{
+  "dataset_meta": {
+    "dataset": "amlworld_hi_small",
+    "num_nodes": 518573,
+    "num_edges": 80000,
+    "max_transactions_loaded": 80000,
+    "node_label_pos_rate": 7.713475248422112e-06,
+    "edge_label_pos_rate": 3.7500001781154424e-05,
+    "node_feature_dim": 7,
+    "edge_feature_dim": 11,
+    "node_feature_entity_categories": [
+      [
+        "Corporation",
+        "Country",
+        "Direct",
+        "Individual",
+        "Partnership",
+        "Sole Proprietorship"
+      ]
+    ],
+    "edge_feature_payfmt_categories": [
+      [
+        "ACH",
+        "Bitcoin",
+        "Cash",
+        "Cheque",
+        "Credit Card",
+        "Reinvestment",
+        "Wire"
+      ]
+    ],
+    "t0": "2022-09-01 00:00:00",
+    "schema": {
+      "node_label": "derived is_sar_account (any endpoint of laundering tx)",
+      "edge_label": "is laundering",
+      "edge_amount_col": "amount paid",
+      "edge_time_col": "timestamp",
+      "edge_payfmt_col": "payment format",
+      "edge_direction": "account -> account.1"
+    },
+    "split_policy": "size_matched_unstratified_plus_min1_then_round_robin_surplus_positives",
+    "split_node_label_counts": [
+      {
+        "split": "train",
+        "n": 311143,
+        "positives": 1,
+        "negatives": 311142
+      },
+      {
+        "split": "val",
+        "n": 103715,
+        "positives": 1,
+        "negatives": 103714
+      },
+      {
+        "split": "test",
+        "n": 103715,
+        "positives": 2,
+        "negatives": 103713
+      }
+    ],
+    "split_edge_label_counts": [
+      {
+        "split": "train",
+        "n": 48000,
+        "positives": 1,
+        "negatives": 47999
+      },
+      {
+        "split": "val",
+        "n": 16000,
+        "positives": 1,
+        "negatives": 15999
+      },
+      {
+        "split": "test",
+        "n": 16000,
+        "positives": 1,
+        "negatives": 15999
+      }
+    ]
+  },
+  "settings": {
+    "seed": 7,
+    "max_transactions": 80000,
+    "pgb_max_edge_rows": 200000,
+    "synthetic_pt": "/Users/vivek/Library/Mobile Documents/com~apple~CloudDocs/A School/Harvard/Current/Stat 175/Final Project/outputs/graphmaker/synthetic_from_graphmaker.pt"
+  },
+  "pgb_note": "Structural stats use undirected simple graphs on shared V*; see evaluation/pgb_style.py.",
+  "privacy_note": "These scores are not \u03b5-DP; they measure graph fidelity vs real (PGB-style queries).",
+  "runs": {
+    "degree_preserving": {
+      "synthetic_meta": {
+        "generator": "degree_preserving_bootstrap",
+        "seed": 7,
+        "preserves": [
+          "in_degree_sequence",
+          "out_degree_sequence",
+          "marginal_node_feature_dist",
+          "marginal_edge_feature_dist"
+        ]
+      },
+      "pgb_fifteen": {
+        "reference": "Liu et al., PGB arXiv:2408.02928 Table III-IV",
+        "graph": "Undirected simple graphs: if num_nodes matches, V* = endpoints of non-self-loop real edges restricted to shared id range; else top-degree-k real induced subgraph (k=num_syn_nodes) vs full syn.",
+        "vertex_graph_meta": {
+          "method": "real_active_endpoints_intersection",
+          "n_real_nodes_pyG": 518573,
+          "n_syn_nodes_pyG": 518573,
+          "n_active_vertices_V_star": 21297,
+          "n_edges_undirected_real": 12881,
+          "n_edges_undirected_syn": 10921,
+          "pgb_edge_cap_directed": 200000,
+          "real_edge_projection_stats": {
+            "edge_rows_input": 80000,
+            "label": "real_aligned",
+            "edge_subsampled": false,
+            "edge_rows_used": 21107,
+            "undirected_unique_edges": 12881
+          },
+          "syn_edge_projection_stats": {
+            "edge_rows_input": 80000,
+            "label": "syn_aligned",
+            "edge_subsampled": false,
+            "edge_rows_used": 10931,
+            "undirected_unique_edges": 10921
+          }
+        },
+        "queries": {
+          "Q1_|V|": {
+            "real": 21297.0,
+            "syn": 21297.0,
+            "RE": 0.0,
+            "metric": "RE"
+          },
+          "Q2_|E|": {
+            "real": 12881.0,
+            "syn": 10921.0,
+            "RE": 0.15216209921589938,
+            "metric": "RE"
+          },
+          "Q3_triangles": {
+            "real": 0.0,
+            "syn": 11.0,
+            "RE": null,
+            "metric": "RE"
+          },
+          "Q4_avg_degree": {
+            "real": 1.209653941869747,
+            "syn": 1.0255904587500586,
+            "RE": 0.1521620992158995,
+            "metric": "RE"
+          },
+          "Q5_degree_variance": {
+            "real": 23.188660146947992,
+            "syn": 15.443257416536657,
+            "RE": 0.33401682897279245,
+            "metric": "RE"
+          },
+          "Q7_diameter": {
+            "real": 12.0,
+            "syn": 54.0,
+            "RE": 3.5,
+            "metric": "RE"
+          },
+          "Q8_avg_shortest_path": {
+            "real": 2.3611982120221495,
+            "syn": 12.29008839008641,
+            "RE": 4.205021894185274,
+            "metric": "RE"
+          },
+          "Q10_GCC_transitivity": {
+            "real": 0.0,
+            "syn": 0.00020622679948505794,
+            "RE": null,
+            "metric": "RE"
+          },
+          "Q11_ACC": {
+            "real": 0.0,
+            "syn": 0.0005885056648263094,
+            "RE": null,
+            "metric": "RE"
+          },
+          "Q13_modularity": {
+            "real": 0.3568228207608983,
+            "syn": 0.9191885943585548,
+            "RE": 1.5760364552873978,
+            "metric": "RE"
+          },
+          "Q14_assortativity": {
+            "real": -0.02845002637641374,
+            "syn": -0.02613534935347996,
+            "RE": 0.0813593981358395,
+            "metric": "RE"
+          },
+          "Q6_degree_distribution": {
+            "KL_syn_vs_real": 9.827445846853072,
+            "KL_real_vs_syn": 0.6336861361750171,
+            "KS_statistic": 0.37347983284030617,
+            "KS_pvalue": 0.0,
+            "metric": "KL,KS"
+          },
+          "Q9_distance_distribution": {
+            "L1_hist_diff": 1.6545713810681155,
+            "metric": "L1(normalized hists)"
+          },
+          "Q12_community_detection": {
+            "NMI": 0.44580340378299704,
+            "ARI": 0.016363045351293334,
+            "AMI": 0.032012135489290806,
+            "metric": "NMI,ARI,AMI"
+          },
+          "Q15_eigenvector_centrality": {
+            "MAE": 0.04403689775232318,
+            "metric": "MAE"
+          },
+          "Q11_ACC_MRE_per_node": {
+            "MRE": 0.6929070128566893,
+            "metric": "MRE (Table IV)"
+          }
+        },
+        "summary_mean_RE_scalar_queries": 1.2500948468766377,
+        "privacy_note": "PGB privacy in the paper is \u03b5-DP from their synthetic mechanism; our generators do not emit \u03b5. These numbers are structural fidelity / utility only."
+      },
+      "empirical_privacy": {
+        "directed_edge_jaccard": {
+          "intersection": 39,
+          "union": 144260,
+          "jaccard": 0.0002703452100374324,
+          "n_real_edges": 80000,
+          "n_syn_edges": 80000,
+          "approximate_on_sample": 200000
+        },
+        "aligned_node_feature_l1": {
+          "compatible": true,
+          "mean_l1": 0.34100693464279175,
+          "median_l1": 0.3189872205257416
+        },
+        "neighbor_jaccard_out": {
+          "mean_jaccard": 0.0,
+          "n_samples": 500
+        },
+        "disclaimer": "Empirical proxies only; not epsilon-DP."
+      }
+    },
+    "from_pt": {
+      "synthetic_meta": {
+        "generator": "external_torch_file",
+        "path": "/Users/vivek/Library/Mobile Documents/com~apple~CloudDocs/A School/Harvard/Current/Stat 175/Final Project/outputs/graphmaker/synthetic_from_graphmaker.pt",
+        "note": "Typically GraphMaker or another generative model after conversion to PyG.",
+        "references": {
+          "graphmaker_paper": "https://arxiv.org/abs/2310.13833",
+          "graphmaker_code": "https://github.com/Graph-COM/GraphMaker"
+        }
+      },
+      "pgb_fifteen": {
+        "reference": "Liu et al., PGB arXiv:2408.02928 Table III-IV",
+        "graph": "Undirected simple graphs: if num_nodes matches, V* = endpoints of non-self-loop real edges restricted to shared id range; else top-degree-k real induced subgraph (k=num_syn_nodes) vs full syn.",
+        "vertex_graph_meta": {
+          "method": "subsampled_real_nodes_to_match_syn",
+          "k": 800,
+          "n_real_nodes_pyG": 518573,
+          "n_syn_nodes_pyG": 800,
+          "n_edges_undirected_real": 158,
+          "n_edges_undirected_syn": 0,
+          "pgb_edge_cap_directed": 200000,
+          "real_edge_projection_stats": {
+            "edge_rows_input": 80000,
+            "label": "real_subsampled",
+            "edge_subsampled": false,
+            "edge_rows_used": 582,
+            "undirected_unique_edges": 158
+          },
+          "syn_edge_projection_stats": {
+            "edge_rows_input": 1,
+            "label": "syn",
+            "edge_rows_used": 0,
+            "edge_subsampled": false,
+            "undirected_unique_edges": 0
+          }
+        },
+        "queries": {
+          "Q1_|V|": {
+            "real": 800.0,
+            "syn": 800.0,
+            "RE": 0.0,
+            "metric": "RE"
+          },
+          "Q2_|E|": {
+            "real": 158.0,
+            "syn": 0.0,
+            "RE": 1.0,
+            "metric": "RE"
+          },
+          "Q3_triangles": {
+            "real": 0.0,
+            "syn": 0.0,
+            "RE": 0.0,
+            "metric": "RE"
+          },
+          "Q4_avg_degree": {
+            "real": 0.395,
+            "syn": 0.0,
+            "RE": 1.0,
+            "metric": "RE"
+          },
+          "Q5_degree_variance": {
+            "real": 2.6289749999999996,
+            "syn": 0.0,
+            "RE": 1.0,
+            "metric": "RE"
+          },
+          "Q7_diameter": {
+            "real": 4.0,
+            "syn": 0.0,
+            "RE": 1.0,
+            "metric": "RE"
+          },
+          "Q8_avg_shortest_path": {
+            "real": 2.09005376344086,
+            "syn": null,
+            "RE": null,
+            "metric": "RE"
+          },
+          "Q10_GCC_transitivity": {
+            "real": 0.0,
+            "syn": 0.0,
+            "RE": 0.0,
+            "metric": "RE"
+          },
+          "Q11_ACC": {
+            "real": 0.0,
+            "syn": 0.0,
+            "RE": 0.0,
+            "metric": "RE"
+          },
+          "Q13_modularity": {
+            "real": 0.17596834652228233,
+            "syn": null,
+            "RE": null,
+            "metric": "RE"
+          },
+          "Q14_assortativity": {
+            "real": -0.15953672031171579,
+            "syn": null,
+            "RE": null,
+            "metric": "RE"
+          },
+          "Q6_degree_distribution": {
+            "KL_syn_vs_real": 0.39861363315857296,
+            "KL_real_vs_syn": 8.389115161364511,
+            "KS_statistic": 0.32875,
+            "KS_pvalue": 1.1716093321628205e-38,
+            "metric": "KL,KS"
+          },
+          "Q9_distance_distribution": {
+            "L1_hist_diff": 1.0,
+            "metric": "L1(normalized hists)"
+          },
+          "Q12_community_detection": {
+            "NMI": null,
+            "ARI": null,
+            "AMI": null,
+            "metric": "NMI,ARI,AMI",
+            "skipped": "GCC intersection empty or too large for greedy modularity"
+          },
+          "Q15_eigenvector_centrality": {
+            "MAE": null,
+            "metric": "MAE",
+            "skipped": "GCC intersection empty or too large for EVC"
+          },
+          "Q11_ACC_MRE_per_node": {
+            "MRE": 0.32875,
+            "metric": "MRE (Table IV)"
+          }
+        },
+        "summary_mean_RE_scalar_queries": 0.5,
+        "privacy_note": "PGB privacy in the paper is \u03b5-DP from their synthetic mechanism; our generators do not emit \u03b5. These numbers are structural fidelity / utility only."
+      },
+      "empirical_privacy": {
+        "directed_edge_jaccard": {
+          "intersection": 0,
+          "union": 64311,
+          "jaccard": 0.0,
+          "n_real_edges": 80000,
+          "n_syn_edges": 1,
+          "approximate_on_sample": 200000
+        },
+        "aligned_node_feature_l1": {
+          "compatible": false,
+          "mean_l1": null,
+          "median_l1": null,
+          "reason": "num_nodes mismatch"
+        },
+        "neighbor_jaccard_out": {
+          "mean_jaccard": null,
+          "n_samples": 0
+        },
+        "disclaimer": "Empirical proxies only; not epsilon-DP."
+      }
+    }
+  }
+}

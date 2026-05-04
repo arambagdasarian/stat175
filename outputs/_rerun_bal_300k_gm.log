@@ -1,0 +1,9 @@
+/Users/vivek/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+/Users/vivek/Library/Python/3.9/lib/python/site-packages/numpy/lib/function_base.py:2897: RuntimeWarning: invalid value encountered in divide
+  c /= stddev[:, None]
+/Users/vivek/Library/Python/3.9/lib/python/site-packages/numpy/lib/function_base.py:2898: RuntimeWarning: invalid value encountered in divide
+  c /= stddev[None, :]
+/Users/vivek/Library/Python/3.9/lib/python/site-packages/numpy/lib/function_base.py:2895: RuntimeWarning: invalid value encountered in divide
+  return c / c
+Wrote results to outputs/transfer_hi_small_n518573_e300000_m300000_graphmaker_dp.json

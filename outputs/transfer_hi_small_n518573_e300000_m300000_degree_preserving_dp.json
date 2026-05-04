@@ -1,0 +1,440 @@
+{
+  "dataset_meta": {
+    "dataset": "amlworld_hi_small",
+    "num_nodes": 518573,
+    "num_edges": 300000,
+    "max_transactions_loaded": 300000,
+    "node_label_pos_rate": 6.749290842369348e-05,
+    "edge_label_pos_rate": 9.333333582617342e-05,
+    "node_feature_dim": 7,
+    "edge_feature_dim": 11,
+    "node_feature_entity_categories": [
+      [
+        "Corporation",
+        "Country",
+        "Direct",
+        "Individual",
+        "Partnership",
+        "Sole Proprietorship"
+      ]
+    ],
+    "edge_feature_payfmt_categories": [
+      [
+        "ACH",
+        "Bitcoin",
+        "Cash",
+        "Cheque",
+        "Credit Card",
+        "Reinvestment",
+        "Wire"
+      ]
+    ],
+    "t0": "2022-09-01 00:00:00",
+    "schema": {
+      "node_label": "derived is_sar_account (any endpoint of laundering tx)",
+      "edge_label": "is laundering",
+      "edge_amount_col": "amount paid",
+      "edge_time_col": "timestamp",
+      "edge_payfmt_col": "payment format",
+      "edge_direction": "account -> account.1"
+    },
+    "split_policy": "size_matched_unstratified_plus_min1_then_round_robin_surplus_positives",
+    "split_node_label_counts": [
+      {
+        "split": "train",
+        "n": 311143,
+        "positives": 11,
+        "negatives": 311132
+      },
+      {
+        "split": "val",
+        "n": 103715,
+        "positives": 12,
+        "negatives": 103703
+      },
+      {
+        "split": "test",
+        "n": 103715,
+        "positives": 12,
+        "negatives": 103703
+      }
+    ],
+    "split_edge_label_counts": [
+      {
+        "split": "train",
+        "n": 180000,
+        "positives": 9,
+        "negatives": 179991
+      },
+      {
+        "split": "val",
+        "n": 60000,
+        "positives": 9,
+        "negatives": 59991
+      },
+      {
+        "split": "test",
+        "n": 60000,
+        "positives": 10,
+        "negatives": 59990
+      }
+    ]
+  },
+  "result": {
+    "device": "cpu",
+    "training": {
+      "hidden_dim": 128,
+      "emb_dim": 128,
+      "num_layers": 2,
+      "dropout": 0.1,
+      "node_epochs": 12,
+      "edge_epochs": 8,
+      "syn_node_epochs": 12,
+      "syn_edge_epochs": 6,
+      "lr": 0.001,
+      "weight_decay": 0.0001,
+      "seed": 7,
+      "warm_start_from_real": false,
+      "edges_only": false,
+      "use_dp": true,
+      "dp_noise_multiplier": 1.0,
+      "dp_max_grad_norm": 1.0,
+      "dp_delta": 1e-05,
+      "dp_batch_size": 512,
+      "dp_steps_per_epoch": 40,
+      "dp_num_hops": 2
+    },
+    "dp_accounting": {
+      "node_real": {
+        "dp_sgd": true,
+        "target": "node",
+        "checkpoints_written": null,
+        "subgraph_k_hop": 2,
+        "noise_multiplier": 1.0,
+        "max_grad_norm": 1.0,
+        "delta": 1e-05,
+        "batch_size": 512,
+        "steps_per_epoch": 40,
+        "epochs": 12,
+        "total_optimizer_steps": 480,
+        "sample_rate_approx": 0.0016455456172885137,
+        "epsilon_rdp": 0.7486854452741761,
+        "accountant": "opacus.RDPAccountant",
+        "note": "DP-SGD on random k-hop subgraphs; RDP epsilon is a standard DP-SGD accounting heuristic for this stochastic subgraph scheme (not a formal graph DP guarantee)."
+      },
+      "edge_real": {
+        "dp_sgd": true,
+        "target": "edge",
+        "checkpoints_written": null,
+        "subgraph_k_hop": 2,
+        "noise_multiplier": 1.0,
+        "max_grad_norm": 1.0,
+        "delta": 1e-05,
+        "batch_size": 512,
+        "steps_per_epoch": 40,
+        "epochs": 8,
+        "total_optimizer_steps": 320,
+        "sample_rate_approx": 0.0028444444444444446,
+        "epsilon_rdp": 0.8535597181142686,
+        "accountant": "opacus.RDPAccountant",
+        "note": "Encoder + edge head trained with DP-SGD on subgraphs around sampled train edges; full-graph eval uses trained weights (not a per-edge DP guarantee on inference)."
+      },
+      "node_syn": {
+        "dp_sgd": true,
+        "target": "node",
+        "checkpoints_written": null,
+        "subgraph_k_hop": 2,
+        "noise_multiplier": 1.0,
+        "max_grad_norm": 1.0,
+        "delta": 1e-05,
+        "batch_size": 512,
+        "steps_per_epoch": 40,
+        "epochs": 12,
+        "total_optimizer_steps": 480,
+        "sample_rate_approx": 0.0016455456172885137,
+        "epsilon_rdp": 0.7486854452741761,
+        "accountant": "opacus.RDPAccountant",
+        "note": "DP-SGD on random k-hop subgraphs; RDP epsilon is a standard DP-SGD accounting heuristic for this stochastic subgraph scheme (not a formal graph DP guarantee)."
+      },
+      "edge_syn": {
+        "dp_sgd": true,
+        "target": "edge",
+        "checkpoints_written": null,
+        "subgraph_k_hop": 2,
+        "noise_multiplier": 1.0,
+        "max_grad_norm": 1.0,
+        "delta": 1e-05,
+        "batch_size": 512,
+        "steps_per_epoch": 40,
+        "epochs": 6,
+        "total_optimizer_steps": 240,
+        "sample_rate_approx": 0.0028444444444444446,
+        "epsilon_rdp": 0.8465209289392127,
+        "accountant": "opacus.RDPAccountant",
+        "note": "Encoder + edge head trained with DP-SGD on subgraphs around sampled train edges; full-graph eval uses trained weights (not a per-edge DP guarantee on inference)."
+      }
+    },
+    "checkpoint_dir": null,
+    "edge_checkpoint_dir": null,
+    "synthetic_meta": {
+      "generator": "degree_preserving_bootstrap",
+      "seed": 7,
+      "preserves": [
+        "in_degree_sequence",
+        "out_degree_sequence",
+        "marginal_node_feature_dist",
+        "marginal_edge_feature_dist"
+      ]
+    },
+    "node": {
+      "real_train_eval": {
+        "train": {
+          "roc_auc": 0.8735124700068839,
+          "pr_auc": 0.000205212930406493,
+          "f1": 7.070453858860886e-05,
+          "n_pos": 11,
+          "n_neg": 311132,
+          "f1_best": 0.0006163328197226503,
+          "prevalence": 3.535351912143291e-05,
+          "pr_lift": 5.804596982315223
+        },
+        "val": {
+          "roc_auc": 0.823706482293987,
+          "pr_auc": 0.0004301235892605981,
+          "f1": 0.0002313765943293453,
+          "n_pos": 12,
+          "n_neg": 103703,
+          "f1_best": 0.001231337540403263,
+          "prevalence": 0.00011570168249529962,
+          "pr_lift": 3.7175223383469107
+        },
+        "test": {
+          "roc_auc": 0.8206054791086083,
+          "pr_auc": 0.00040649977020133224,
+          "f1": 0.0002313765943293453,
+          "n_pos": 12,
+          "n_neg": 103703,
+          "f1_best": 0.0012303906490310674,
+          "prevalence": 0.00011570168249529962,
+          "pr_lift": 3.513343638869264
+        }
+      },
+      "transfer_eval_on_real_test": {
+        "roc_auc": 0.757315763928398,
+        "pr_auc": 0.00025154797675406844,
+        "f1": 0.0002313765943293453,
+        "n_pos": 12,
+        "n_neg": 103703,
+        "f1_best": 0.000684814244136278,
+        "prevalence": 0.00011570168249529962,
+        "pr_lift": 2.1741082007540173
+      },
+      "drop_test": {
+        "roc_auc_drop": 0.06328971518021032,
+        "pr_auc_drop": 0.0001549517934472638,
+        "f1_drop": 0.0
+      }
+    },
+    "edge": {
+      "real_train_eval": {
+        "train": {
+          "roc_auc": 0.8379641204282436,
+          "pr_auc": 0.44977922524533714,
+          "f1": 9.99950002499875e-05,
+          "n_pos": 9,
+          "n_neg": 179991,
+          "f1_best": 0.002129925452609159,
+          "prevalence": 5e-05,
+          "pr_lift": 8995.584504906743
+        },
+        "val": {
+          "roc_auc": 0.6812577442171881,
+          "pr_auc": 0.3945664399590523,
+          "f1": 0.0002999550067489877,
+          "n_pos": 9,
+          "n_neg": 59991,
+          "f1_best": 0.2,
+          "prevalence": 0.00015,
+          "pr_lift": 2630.442933060349
+        },
+        "test": {
+          "roc_auc": 0.7653125520920152,
+          "pr_auc": 0.4635937628310467,
+          "f1": 0.0003332777870354941,
+          "n_pos": 10,
+          "n_neg": 59990,
+          "f1_best": 0.18181818181818182,
+          "prevalence": 0.00016666666666666666,
+          "pr_lift": 2781.5625769862804
+        }
+      },
+      "synthetic_train_eval": {
+        "train": {
+          "roc_auc": 0.9184206798079915,
+          "pr_auc": 0.48649841274386857,
+          "f1": 8.888493844718013e-05,
+          "n_pos": 8,
+          "n_neg": 179992,
+          "f1_best": 0.002485354162968223,
+          "prevalence": 4.4444444444444447e-05,
+          "pr_lift": 10946.214286737042
+        },
+        "val": {
+          "roc_auc": 0.7196146986264835,
+          "pr_auc": 0.23980581010556312,
+          "f1": 0.0002666311158512198,
+          "n_pos": 8,
+          "n_neg": 59992,
+          "f1_best": 0.003186404673393521,
+          "prevalence": 0.00013333333333333334,
+          "pr_lift": 1798.5435757917232
+        },
+        "test": {
+          "roc_auc": 0.7142423215334152,
+          "pr_auc": 0.6667183776920825,
+          "f1": 0.0002999550067489877,
+          "n_pos": 9,
+          "n_neg": 59991,
+          "f1_best": 0.2,
+          "prevalence": 0.00015,
+          "pr_lift": 4444.789184613884
+        }
+      },
+      "transfer_eval_on_real_test": {
+        "roc_auc": 0.7435672612102017,
+        "pr_auc": 0.4638311385952171,
+        "f1": 0.0003332777870354941,
+        "n_pos": 10,
+        "n_neg": 59990,
+        "f1_best": 0.18181818181818182,
+        "prevalence": 0.00016666666666666666,
+        "pr_lift": 2782.9868315713024
+      },
+      "drop_test": {
+        "roc_auc_drop": 0.02174529088181354,
+        "pr_auc_drop": -0.00023737576417037776,
+        "f1_drop": 0.0
+      }
+    },
+    "similarity": {
+      "degree": {
+        "real": {
+          "in_deg_mean": 0.5785106436316584,
+          "out_deg_mean": 0.5785106436316584
+        },
+        "syn": {
+          "in_deg_mean": 0.5785106436316584,
+          "out_deg_mean": 0.5785106436316584
+        },
+        "in_deg_hist_l1": 0.0
+      },
+      "clustering_undirected": {
+        "real": 0.0,
+        "syn": 3.425445167164022e-05
+      },
+      "path_length": {
+        "real": {
+          "mean": 2.929864636209814,
+          "median": 2.0,
+          "n_pairs": 11820
+        },
+        "syn": {
+          "mean": 8.75312195023155,
+          "median": 9.0,
+          "n_pairs": 63101102
+        }
+      },
+      "node_feature_ks": {
+        "ks_stat_mean": 0.00043581135153580863,
+        "ks_stat_max": 0.0014887007229453797,
+        "ks_pvalue_mean": 0.9447263500154293,
+        "per_dim": {
+          "ks_stat": [
+            0.0014887007229453797,
+            0.00029311205944004826,
+            0.0001619829802168571,
+            0.0,
+            6.36361707994082e-05,
+            0.0004878773094626476,
+            0.0005553702178863196
+          ],
+          "ks_pvalue": [
+            0.6130863042787833,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            0.9999999778895681,
+            0.9999981679396527
+          ]
+        }
+      },
+      "edge_feature_ks": {
+        "ks_stat_mean": 0.0008557575757575805,
+        "ks_stat_max": 0.0021966666666666246,
+        "ks_pvalue_mean": 0.9087660846860458,
+        "per_dim": {
+          "ks_stat": [
+            0.0021966666666666246,
+            0.0019066666666666121,
+            0.001083333333333325,
+            0.001093333333333335,
+            3.666666666668483e-05,
+            6.666666666710341e-06,
+            0.00022333333333335315,
+            0.0014766666666666817,
+            0.0005566666666667608,
+            0.0007499999999999729,
+            8.333333333332416e-05
+          ],
+          "ks_pvalue": [
+            0.4635050882576306,
+            0.6459106972533039,
+            0.9945232979281637,
+            0.9938371201389155,
+            1.0,
+            1.0,
+            1.0,
+            0.8986547454700046,
+            0.9999999999616871,
+            0.9999959825367984,
+            1.0
+          ]
+        }
+      },
+      "node_feature_corr": {
+        "corr_fro_norm": 0.006217383324663856,
+        "dims": 7
+      },
+      "edge_feature_corr": {
+        "corr_fro_norm": 0.016185406153558866,
+        "dims": 11
+      },
+      "label_rates": {
+        "node_pos_rate_real": 6.749291060259566e-05,
+        "node_pos_rate_syn": 6.170780397951603e-05,
+        "edge_pos_rate_real": 9.333333582617342e-05,
+        "edge_pos_rate_syn": 8.333333244081587e-05
+      }
+    },
+    "fraud_patterns": {
+      "node_degree_by_label": {
+        "real": {
+          "sar_in_mean": 2.257142857142857,
+          "sar_out_mean": 132.62857142857143,
+          "clean_in_mean": 0.5783973402142176,
+          "clean_out_mean": 0.5695975994044795,
+          "sar_frac": 6.749290842369348e-05
+        },
+        "syn": {
+          "sar_in_mean": 0.71875,
+          "sar_out_mean": 0.375,
+          "clean_in_mean": 0.578501989235181,
+          "clean_out_mean": 0.5785232026011443,
+          "sar_frac": 6.17078019873769e-05
+        }
+      }
+    },
+    "dp_composition_note": "Each training phase (real node, real edge, synthetic node, synthetic edge) uses its own RDPAccountant restart. Reported epsilon_rdp values are not automatically composed into a single joint (\u03b5, \u03b4) guarantee across phases."
+  }
+}

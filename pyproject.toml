@@ -12,12 +12,15 @@ dependencies = [
   "tqdm>=4.66",
   "pyyaml>=6.0.1",
   "matplotlib>=3.8",
+  # PyTorch 2.2+ includes MPS (Apple Silicon). Use official macOS wheels from pytorch.org if needed.
   "torch>=2.2",
   "torch-geometric>=2.5",
 ]
 
 [project.optional-dependencies]
 dev = ["ruff>=0.6.0"]
+# RDP (ε, δ) accounting for DP-SGD training (`models/dp_train.py`).
+dp = ["opacus>=1.4.0"]
 # GraphMaker + DGL: pin torch to a version that matches bundled GraphBolt libs (often 2.2.x CPU wheels).
 graphmaker = ["dgl>=2.2,<2.3", "torchdata>=0.7.1", "pydantic>=2"]
 

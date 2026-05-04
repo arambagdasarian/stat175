@@ -94,7 +94,80 @@
       "lr": 0.001,
       "weight_decay": 0.0001,
       "seed": 7,
-      "warm_start_from_real": false
+      "warm_start_from_real": false,
+      "use_dp": true,
+      "dp_noise_multiplier": 1.0,
+      "dp_max_grad_norm": 1.0,
+      "dp_delta": 1e-05,
+      "dp_batch_size": 512,
+      "dp_steps_per_epoch": 40,
+      "dp_num_hops": 2
+    },
+    "dp_accounting": {
+      "node_real": {
+        "dp_sgd": true,
+        "target": "node",
+        "subgraph_k_hop": 2,
+        "noise_multiplier": 1.0,
+        "max_grad_norm": 1.0,
+        "delta": 1e-05,
+        "batch_size": 512,
+        "steps_per_epoch": 40,
+        "epochs": 12,
+        "total_optimizer_steps": 480,
+        "sample_rate_approx": 0.0016455456172885137,
+        "epsilon_rdp": 0.7486854452741761,
+        "accountant": "opacus.RDPAccountant",
+        "note": "DP-SGD on random k-hop subgraphs; RDP epsilon is a standard DP-SGD accounting heuristic for this stochastic subgraph scheme (not a formal graph DP guarantee)."
+      },
+      "edge_real": {
+        "dp_sgd": true,
+        "target": "edge",
+        "subgraph_k_hop": 2,
+        "noise_multiplier": 1.0,
+        "max_grad_norm": 1.0,
+        "delta": 1e-05,
+        "batch_size": 512,
+        "steps_per_epoch": 40,
+        "epochs": 8,
+        "total_optimizer_steps": 320,
+        "sample_rate_approx": 0.010666666666666666,
+        "epsilon_rdp": 1.5407256252741535,
+        "accountant": "opacus.RDPAccountant",
+        "note": "Encoder + edge head trained with DP-SGD on subgraphs around sampled train edges; full-graph eval uses trained weights (not a per-edge DP guarantee on inference)."
+      },
+      "node_syn": {
+        "dp_sgd": true,
+        "target": "node",
+        "subgraph_k_hop": 2,
+        "noise_multiplier": 1.0,
+        "max_grad_norm": 1.0,
+        "delta": 1e-05,
+        "batch_size": 512,
+        "steps_per_epoch": 40,
+        "epochs": 12,
+        "total_optimizer_steps": 480,
+        "sample_rate_approx": 1.0,
+        "epsilon_rdp": 342.8612600716533,
+        "accountant": "opacus.RDPAccountant",
+        "note": "DP-SGD on random k-hop subgraphs; RDP epsilon is a standard DP-SGD accounting heuristic for this stochastic subgraph scheme (not a formal graph DP guarantee)."
+      },
+      "edge_syn": {
+        "dp_sgd": true,
+        "target": "edge",
+        "subgraph_k_hop": 2,
+        "noise_multiplier": 1.0,
+        "max_grad_norm": 1.0,
+        "delta": 1e-05,
+        "batch_size": 512,
+        "steps_per_epoch": 40,
+        "epochs": 6,
+        "total_optimizer_steps": 240,
+        "sample_rate_approx": 1.0,
+        "epsilon_rdp": 192.03553359954904,
+        "accountant": "opacus.RDPAccountant",
+        "note": "Encoder + edge head trained with DP-SGD on subgraphs around sampled train edges; full-graph eval uses trained weights (not a per-edge DP guarantee on inference)."
+      }
     },
     "synthetic_meta": {
       "generator": "external_torch_file",
@@ -108,48 +181,48 @@
     "node": {
       "real_train_eval": {
         "train": {
-          "roc_auc": 0.9961496679972488,
-          "pr_auc": 0.0008340283569641367,
-          "f1": 1.1926058437686345e-05
+          "roc_auc": 0.31410095711925745,
+          "pr_auc": 4.6857501651726936e-06,
+          "f1": 0.0
         },
         "val": {
-          "roc_auc": 0.5363113947972309,
-          "pr_auc": 2.0793479164933875e-05,
-          "f1": 3.592921943770772e-05
+          "roc_auc": 0.9996143240064022,
+          "pr_auc": 0.024390243902439025,
+          "f1": 0.0
         },
         "test": {
-          "roc_auc": 0.8444891190111172,
-          "pr_auc": 0.00018454098020885348,
-          "f1": 7.187005893344832e-05
+          "roc_auc": 0.07147609267883487,
+          "pr_auc": 1.55303669570574e-05,
+          "f1": 0.0
         }
       },
       "transfer_eval_on_real_test": {
-        "roc_auc": 0.26769546729918137,
-        "pr_auc": 1.9479496971111278e-05,
-        "f1": 0.0
+        "roc_auc": 0.8434574257807604,
+        "pr_auc": 0.0014475628759630834,
+        "f1": 5.5305146143848684e-05
       },
       "drop_test": {
-        "roc_auc_drop": 0.5767936517119359,
-        "pr_auc_drop": 0.0001650614832377422,
-        "f1_drop": 7.187005893344832e-05
+        "roc_auc_drop": -0.7719813331019256,
+        "pr_auc_drop": -0.001432032509006026,
+        "f1_drop": -5.5305146143848684e-05
       }
     },
     "edge": {
       "real_train_eval": {
         "train": {
-          "roc_auc": 0.9997708285589282,
-          "pr_auc": 0.08333333333333333,
-          "f1": 0.0005657708628005657
+          "roc_auc": 0.5964915935748661,
+          "pr_auc": 5.16288915276989e-05,
+          "f1": 0.0001011173466808231
         },
         "val": {
-          "roc_auc": 0.864054003375211,
-          "pr_auc": 0.00045955882352941176,
-          "f1": 0.0
+          "roc_auc": 0.7985499093693356,
+          "pr_auc": 0.00031017369727047146,
+          "f1": 0.0003071253071253071
         },
         "test": {
-          "roc_auc": 0.9722482655165948,
-          "pr_auc": 0.0022471910112359553,
-          "f1": 0.0017889087656529517
+          "roc_auc": 0.791111944496531,
+          "pr_auc": 0.0002991325157044571,
+          "f1": 0.00030376670716889426
         }
       },
       "synthetic_train_eval": {
@@ -170,14 +243,14 @@
         }
       },
       "transfer_eval_on_real_test": {
-        "roc_auc": 0.9043065191574473,
-        "pr_auc": 0.0006527415143603133,
+        "roc_auc": 0.7735483467716733,
+        "pr_auc": 0.0002759381898454746,
         "f1": 0.0
       },
       "drop_test": {
-        "roc_auc_drop": 0.06794174635914751,
-        "pr_auc_drop": 0.001594449496875642,
-        "f1_drop": 0.0017889087656529517
+        "roc_auc_drop": 0.017563597724857716,
+        "pr_auc_drop": 2.3194325858982465e-05,
+        "f1_drop": 0.00030376670716889426
       }
     },
     "similarity": {
@@ -298,6 +371,7 @@
           "sar_frac": 0.00375
         }
       }
-    }
+    },
+    "dp_composition_note": "Each training phase (real node, real edge, synthetic node, synthetic edge) uses its own RDPAccountant restart. Reported epsilon_rdp values are not automatically composed into a single joint (\u03b5, \u03b4) guarantee across phases."
   }
 }
