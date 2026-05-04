@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from data.amlworld import load_amlworld_hi_small_pyg, resolve_hi_small_paths
-from generators.degree_preserving import DegreePreservingGeneratorConfig
 from models.torch_device import get_training_device
 from pipeline.json_sanitize import sanitize_for_json
 from pipeline.transfer_experiment import ModelConfig, run_transfer_experiment
@@ -55,7 +54,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         "--max_transactions",
         type=int,
         default=600_000,
-        help="Rows from HI-Small_Trans (prefix order). Use 0 with --all_transactions or alone to load the full CSV (~5M).",
+        help="Rows from HI-Small_Trans: with --slice_mode prefix, first N rows; with balanced_edges, target edge count after rebalancing.",
     )
     p.add_argument(
         "--all_transactions",
@@ -125,21 +124,62 @@ def main(argv: Optional[list[str]] = None) -> int:
         choices=["auto", "cpu", "cuda", "mps"],
         help="Training device: auto picks CUDA, else Apple MPS (Metal), else CPU.",
     )
+    p.add_argument(
+        "--slice_mode",
+        type=str,
+        default="prefix",
+        choices=["prefix", "balanced_edges"],
+        help="balanced_edges oversamples positives in the transaction window for stabler PR-AUC/ROC (requires finite --max_transactions).",
+    )
+    p.add_argument(
+        "--balance_scan_rows",
+        type=int,
+        default=2_000_000,
+        help="balanced_edges: read at most this many CSV rows before subsampling to --max_transactions.",
+    )
+    p.add_argument(
+        "--target_edge_pos_fraction",
+        type=float,
+        default=0.05,
+        help="balanced_edges: target laundering edge fraction in the loaded slice (capped by positives in scan window).",
+    )
+    p.add_argument(
+        "--no_stratify_edges",
+        action="store_true",
+        help="Do not use sklearn stratified edge train/val/test when viable.",
+    )
+    p.add_argument(
+        "--no_stratify_nodes",
+        action="store_true",
+        help="Do not use sklearn stratified node train/val/test when viable.",
+    )
     args = p.parse_args(argv)
     max_tx: Optional[int] = None if (args.all_transactions or args.max_transactions <= 0) else int(args.max_transactions)
 
     if args.variant != "hi_small":
         raise ValueError("Only hi_small is supported in v0.1")
+    if args.slice_mode == "balanced_edges" and max_tx is None:
+        print(
+            "error: --slice_mode balanced_edges needs a finite --max_transactions (omit --all_transactions).",
+            file=sys.stderr,
+        )
+        return 1
+
+    load_kw: Dict[str, Any] = dict(
+        max_transactions=max_tx,
+        seed=args.seed,
+        add_degree_features=False,
+        slice_mode=args.slice_mode,
+        balance_scan_rows=int(args.balance_scan_rows),
+        target_edge_pos_fraction=float(args.target_edge_pos_fraction),
+        stratify_edges_if_possible=not args.no_stratify_edges,
+        stratify_nodes_if_possible=not args.no_stratify_nodes,
+    )
 
     # Load AMLWorld CSVs from --data_dir, or try a one-shot Kaggle download if missing.
     try:
         _ = resolve_hi_small_paths(args.data_dir)
-        real, meta = load_amlworld_hi_small_pyg(
-            args.data_dir,
-            max_transactions=max_tx,
-            seed=args.seed,
-            add_degree_features=False,
-        )
+        real, meta = load_amlworld_hi_small_pyg(args.data_dir, **load_kw)
     except FileNotFoundError:
         print(
             f"AMLWorld files not found under {args.data_dir}/.\n"
@@ -149,12 +189,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         _maybe_kaggle_download(args.data_dir)
         try:
             _ = resolve_hi_small_paths(args.data_dir)
-            real, meta = load_amlworld_hi_small_pyg(
-                args.data_dir,
-                max_transactions=max_tx,
-                seed=args.seed,
-                add_degree_features=False,
-            )
+            real, meta = load_amlworld_hi_small_pyg(args.data_dir, **load_kw)
         except Exception as e:
             raise RuntimeError(
                 "Could not load AMLWorld HI-Small after attempting Kaggle download.\n"
@@ -173,11 +208,13 @@ def main(argv: Optional[list[str]] = None) -> int:
                 f"  {syn_path.resolve()}\n"
                 "Train and sample first, for example:\n"
                 "  WANDB_MODE=disabled python3 -m scripts.graphmaker_train_amlworld "
-                "--data_dir data/raw --out_dir outputs/graphmaker\n"
+                "--data_dir data/raw --out_dir outputs/graphmaker "
+                "(optional: --slice_mode balanced_edges --target_edge_pos_fraction 0.06)\n"
                 "  export AMLWORLD_DGL_GRAPH=$(pwd)/outputs/graphmaker/amlworld_graph.bin\n"
                 "  python3 -m scripts.graphmaker_sample_to_pyg "
                 "--model_path outputs/graphmaker/amlworld_cpts/Async_TX6_TE9.pth "
-                "--out_pt outputs/graphmaker/synthetic_from_graphmaker.pt\n"
+                "--out_pt outputs/graphmaker/synthetic_from_graphmaker.pt "
+                "(optional: same --slice_mode/...; --syn_edge_fraud_rate_floor 0.08 for synthetic PR-AUC)\n"
                 "Or use --generator degree_preserving for a quick baseline without GraphMaker.",
                 file=sys.stderr,
             )
@@ -210,10 +247,16 @@ def main(argv: Optional[list[str]] = None) -> int:
     if ckpt_dir is not None:
         ckpt_dir.mkdir(parents=True, exist_ok=True)
 
+    gen_cfg = None
+    if args.generator == "degree_preserving":
+        from generators.degree_preserving import DegreePreservingGeneratorConfig
+
+        gen_cfg = DegreePreservingGeneratorConfig(seed=args.seed)
+
     result = run_transfer_experiment(
         real,
         model_cfg=ModelConfig(**mc_kwargs),
-        gen_cfg=DegreePreservingGeneratorConfig(seed=args.seed),
+        gen_cfg=gen_cfg,
         synthetic_torch_path=synthetic_torch_path,
         min_synthetic_nodes=int(args.min_synthetic_nodes),
         device=device,

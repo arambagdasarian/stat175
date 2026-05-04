@@ -17,11 +17,18 @@ from setup_utils import load_train_yaml, set_seed
 def main(args):
     model_name = "Async"
     yaml_data = load_train_yaml(args.dataset, model_name)
-    # Optional overrides for smoke tests / CI (full runs use YAML defaults).
-    if os.environ.get("GRAPHMAKER_NUM_EPOCHS"):
-        yaml_data["train"]["num_epochs"] = int(os.environ["GRAPHMAKER_NUM_EPOCHS"])
-    if os.environ.get("GRAPHMAKER_PATIENT_EPOCHS"):
-        yaml_data["train"]["patient_epochs"] = int(os.environ["GRAPHMAKER_PATIENT_EPOCHS"])
+    # Optional overrides for smoke tests / CI. ``GRAPHMAKER_USE_YAML_DEFAULTS=1`` keeps YAML as-is.
+    if not os.environ.get("GRAPHMAKER_USE_YAML_DEFAULTS"):
+        if os.environ.get("GRAPHMAKER_NUM_EPOCHS"):
+            yaml_data["train"]["num_epochs"] = int(os.environ["GRAPHMAKER_NUM_EPOCHS"])
+        if os.environ.get("GRAPHMAKER_PATIENT_EPOCHS"):
+            yaml_data["train"]["patient_epochs"] = int(os.environ["GRAPHMAKER_PATIENT_EPOCHS"])
+        if os.environ.get("GRAPHMAKER_BATCH_SIZE"):
+            yaml_data["train"]["batch_size"] = int(os.environ["GRAPHMAKER_BATCH_SIZE"])
+        if os.environ.get("GRAPHMAKER_VAL_BATCH_SIZE"):
+            yaml_data["train"]["val_batch_size"] = int(os.environ["GRAPHMAKER_VAL_BATCH_SIZE"])
+        if os.environ.get("GRAPHMAKER_VAL_EVERY_EPOCHS"):
+            yaml_data["train"]["val_every_epochs"] = int(os.environ["GRAPHMAKER_VAL_EVERY_EPOCHS"])
 
     config_df = pd.json_normalize(yaml_data, sep='/')
     # Number of time steps

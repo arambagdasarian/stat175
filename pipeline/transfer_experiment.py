@@ -4,20 +4,18 @@ from dataclasses import asdict, dataclass
 import math
 import random
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
 
 import numpy as np
 import torch
 from torch_geometric.data import Data
 
 from evaluation.similarity import fraud_pattern_report, structural_and_feature_report
-from generators.degree_preserving import (
-    DegreePreservingGeneratorConfig,
-    generate_degree_preserving_synthetic,
-)
 from generators.graphmaker_bridge import load_synthetic_from_torch
-from models.dp_train import DPSGDConfig, train_edge_classifier_dp, train_node_classifier_dp
 from models.gnn import EdgeClassifier, GraphSAGEEncoder, NodeClassifier
+
+if TYPE_CHECKING:
+    from generators.degree_preserving import DegreePreservingGeneratorConfig
 from models.torch_device import get_training_device
 from models.train_utils import Metrics, evaluate_edge, evaluate_node, train_edge_classifier, train_node_classifier
 
@@ -48,18 +46,6 @@ class ModelConfig:
     dp_steps_per_epoch: int = 80
     dp_num_hops: int = 2
     dp_pos_to_neg_ratio: int = 3
-
-
-def _dp_cfg(mcfg: ModelConfig) -> DPSGDConfig:
-    return DPSGDConfig(
-        noise_multiplier=mcfg.dp_noise_multiplier,
-        max_grad_norm=mcfg.dp_max_grad_norm,
-        delta=mcfg.dp_delta,
-        batch_size=mcfg.dp_batch_size,
-        steps_per_epoch=mcfg.dp_steps_per_epoch,
-        num_hops=mcfg.dp_num_hops,
-        pos_to_neg_ratio=mcfg.dp_pos_to_neg_ratio,
-    )
 
 
 def _init_models(real_data, cfg: ModelConfig) -> Tuple[NodeClassifier, EdgeClassifier]:
@@ -108,7 +94,21 @@ def run_transfer_experiment(
     random.seed(mcfg.seed)
     np.random.seed(mcfg.seed)
     torch.manual_seed(mcfg.seed)
-    dpc = _dp_cfg(mcfg)
+    dpc = None
+    train_node_classifier_dp = None
+    train_edge_classifier_dp = None
+    if mcfg.use_dp:
+        from models.dp_train import DPSGDConfig, train_edge_classifier_dp, train_node_classifier_dp
+
+        dpc = DPSGDConfig(
+            noise_multiplier=mcfg.dp_noise_multiplier,
+            max_grad_norm=mcfg.dp_max_grad_norm,
+            delta=mcfg.dp_delta,
+            batch_size=mcfg.dp_batch_size,
+            steps_per_epoch=mcfg.dp_steps_per_epoch,
+            num_hops=mcfg.dp_num_hops,
+            pos_to_neg_ratio=mcfg.dp_pos_to_neg_ratio,
+        )
 
     def _dp_ckpt(tag: str) -> Dict[str, Any]:
         if checkpoint_dir is None:
@@ -181,7 +181,10 @@ def run_transfer_experiment(
                 "Re-sample GraphMaker with a larger target node count (e.g. >= 50,000)."
             )
     else:
-        syn_data, syn_meta = generate_degree_preserving_synthetic(real_data, config=gen_cfg)
+        from generators.degree_preserving import DegreePreservingGeneratorConfig, generate_degree_preserving_synthetic
+
+        cfg = gen_cfg or DegreePreservingGeneratorConfig(seed=mcfg.seed)
+        syn_data, syn_meta = generate_degree_preserving_synthetic(real_data, config=cfg)
 
     # --- Train on synthetic, evaluate on real ---
     node_model_syn, edge_model_syn = _init_models(syn_data, mcfg)

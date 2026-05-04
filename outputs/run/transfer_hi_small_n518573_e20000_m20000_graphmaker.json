@@ -1,0 +1,377 @@
+{
+  "dataset_meta": {
+    "dataset": "amlworld_hi_small",
+    "num_nodes": 518573,
+    "num_edges": 20000,
+    "max_transactions_loaded": 20000,
+    "node_label_pos_rate": 5.977943317527137e-05,
+    "edge_label_pos_rate": 0.0013000000035390258,
+    "node_feature_dim": 7,
+    "edge_feature_dim": 11,
+    "node_feature_entity_categories": [
+      [
+        "Corporation",
+        "Country",
+        "Direct",
+        "Individual",
+        "Partnership",
+        "Sole Proprietorship"
+      ]
+    ],
+    "edge_feature_payfmt_categories": [
+      [
+        "ACH",
+        "Bitcoin",
+        "Cash",
+        "Cheque",
+        "Credit Card",
+        "Reinvestment",
+        "Wire"
+      ]
+    ],
+    "t0": "2022-09-01 00:00:00",
+    "schema": {
+      "node_label": "derived is_sar_account (any endpoint of laundering tx)",
+      "edge_label": "is laundering",
+      "edge_amount_col": "amount paid",
+      "edge_time_col": "timestamp",
+      "edge_payfmt_col": "payment format",
+      "edge_direction": "account -> account.1"
+    },
+    "slice_mode": "balanced_edges",
+    "balance_scan_rows": 250000,
+    "target_edge_pos_fraction": 0.18,
+    "stratify_edges_if_possible": true,
+    "stratify_nodes_if_possible": true,
+    "split_node_policy": "stratified_60_20_20_sklearn",
+    "split_edge_policy": "stratified_60_20_20_sklearn",
+    "split_policy": "stratified_60_20_20_sklearn",
+    "split_node_label_counts": [
+      {
+        "split": "train",
+        "n": 311143,
+        "positives": 19,
+        "negatives": 311124
+      },
+      {
+        "split": "val",
+        "n": 103715,
+        "positives": 6,
+        "negatives": 103709
+      },
+      {
+        "split": "test",
+        "n": 103715,
+        "positives": 6,
+        "negatives": 103709
+      }
+    ],
+    "split_edge_label_counts": [
+      {
+        "split": "train",
+        "n": 12000,
+        "positives": 16,
+        "negatives": 11984
+      },
+      {
+        "split": "val",
+        "n": 4000,
+        "positives": 5,
+        "negatives": 3995
+      },
+      {
+        "split": "test",
+        "n": 4000,
+        "positives": 5,
+        "negatives": 3995
+      }
+    ]
+  },
+  "result": {
+    "device": "mps",
+    "training": {
+      "hidden_dim": 128,
+      "emb_dim": 128,
+      "num_layers": 2,
+      "dropout": 0.1,
+      "node_epochs": 6,
+      "edge_epochs": 5,
+      "syn_node_epochs": 6,
+      "syn_edge_epochs": 5,
+      "lr": 0.001,
+      "weight_decay": 0.0001,
+      "seed": 7,
+      "warm_start_from_real": false,
+      "edges_only": false,
+      "use_dp": false,
+      "dp_noise_multiplier": 1.0,
+      "dp_max_grad_norm": 1.0,
+      "dp_delta": 1e-05,
+      "dp_batch_size": 512,
+      "dp_steps_per_epoch": 40,
+      "dp_num_hops": 2,
+      "dp_pos_to_neg_ratio": 3
+    },
+    "dp_accounting": {},
+    "checkpoint_dir": null,
+    "edge_checkpoint_dir": null,
+    "synthetic_meta": {
+      "generator": "external_torch_file",
+      "path": "/Users/vivek/Library/Mobile Documents/com~apple~CloudDocs/A School/Harvard/Current/Stat 175/Final Project/outputs/run/synthetic_from_graphmaker.pt",
+      "note": "Typically GraphMaker or another generative model after conversion to PyG.",
+      "references": {
+        "graphmaker_paper": "https://arxiv.org/abs/2310.13833",
+        "graphmaker_code": "https://github.com/Graph-COM/GraphMaker"
+      }
+    },
+    "node": {
+      "real_train_eval": {
+        "train": {
+          "roc_auc": 0.8831499913048716,
+          "pr_auc": 0.001132336600176743,
+          "f1": 0.0003053231177306859,
+          "n_pos": 19,
+          "n_neg": 311124,
+          "f1_best": 0.003079133737041979,
+          "prevalence": 6.106516939156593e-05,
+          "pr_lift": 18.543084567831176
+        },
+        "val": {
+          "roc_auc": 0.9853243209364665,
+          "pr_auc": 0.0021610695657037307,
+          "f1": 0.0003456221198156682,
+          "n_pos": 6,
+          "n_neg": 103709,
+          "f1_best": 0.003693444136657433,
+          "prevalence": 5.785084124764981e-05,
+          "pr_lift": 37.355888334493734
+        },
+        "test": {
+          "roc_auc": 0.9757655234036261,
+          "pr_auc": 0.0015560880826464485,
+          "f1": 0.000343780438893027,
+          "n_pos": 6,
+          "n_neg": 103709,
+          "f1_best": 0.003078817733990148,
+          "prevalence": 5.785084124764981e-05,
+          "pr_lift": 26.89827924861273
+        }
+      },
+      "transfer_eval_on_real_test": {
+        "roc_auc": 0.6582890588087822,
+        "pr_auc": 9.734759374511274e-05,
+        "f1": 0.00023188405797101448,
+        "n_pos": 6,
+        "n_neg": 103709,
+        "f1_best": 0.0002642240620045799,
+        "prevalence": 5.785084124764981e-05,
+        "pr_lift": 1.6827342808790613
+      },
+      "drop_test": {
+        "roc_auc_drop": 0.3174764645948439,
+        "pr_auc_drop": 0.0014587404889013357,
+        "f1_drop": 0.0001118963809220125
+      }
+    },
+    "edge": {
+      "real_train_eval": {
+        "train": {
+          "roc_auc": 0.9541367656875834,
+          "pr_auc": 0.4227631029754108,
+          "f1": 0.5454545454545454,
+          "n_pos": 16,
+          "n_neg": 11984,
+          "f1_best": 0.11764705882352941,
+          "prevalence": 0.0013333333333333333,
+          "pr_lift": 317.0723272315581
+        },
+        "val": {
+          "roc_auc": 0.9665081351689612,
+          "pr_auc": 0.6630422209369577,
+          "f1": 0.75,
+          "n_pos": 5,
+          "n_neg": 3995,
+          "f1_best": 0.3333333333333333,
+          "prevalence": 0.00125,
+          "pr_lift": 530.4337767495662
+        },
+        "test": {
+          "roc_auc": 1.0,
+          "pr_auc": 1.0,
+          "f1": 0.8888888888888888,
+          "n_pos": 5,
+          "n_neg": 3995,
+          "f1_best": 0.3333333333333333,
+          "prevalence": 0.00125,
+          "pr_lift": 800.0
+        }
+      },
+      "synthetic_train_eval": {
+        "train": {
+          "roc_auc": 0.570048323769254,
+          "pr_auc": 0.1560886249218284,
+          "f1": 0.24160206718346253,
+          "n_pos": 308,
+          "n_neg": 2150,
+          "f1_best": 0.24267782426778242,
+          "prevalence": 0.12530512611879577,
+          "pr_lift": 1.24566831187615
+        },
+        "val": {
+          "roc_auc": 0.4802272091900272,
+          "pr_auc": 0.3702796369669945,
+          "f1": 0.39774330042313116,
+          "n_pos": 308,
+          "n_neg": 511,
+          "f1_best": 0.546583850931677,
+          "prevalence": 0.37606837606837606,
+          "pr_lift": 0.9846072164804173
+        },
+        "test": {
+          "roc_auc": 0.4910714285714286,
+          "pr_auc": 0.3732849599703284,
+          "f1": 0.42857142857142855,
+          "n_pos": 308,
+          "n_neg": 512,
+          "f1_best": 0.5460992907801419,
+          "prevalence": 0.375609756097561,
+          "pr_lift": 0.993810607713212
+        }
+      },
+      "transfer_eval_on_real_test": {
+        "roc_auc": 0.04911138923654567,
+        "pr_auc": 0.0007724577455168351,
+        "f1": 0.0,
+        "n_pos": 5,
+        "n_neg": 3995,
+        "f1_best": 0.0024968789013732834,
+        "prevalence": 0.00125,
+        "pr_lift": 0.6179661964134681
+      },
+      "drop_test": {
+        "roc_auc_drop": 0.9508886107634543,
+        "pr_auc_drop": 0.9992275422544832,
+        "f1_drop": 0.8888888888888888
+      }
+    },
+    "similarity": {
+      "degree": {
+        "real": {
+          "in_deg_mean": 0.03856737624211056,
+          "out_deg_mean": 0.03856737624211056
+        },
+        "syn": {
+          "in_deg_mean": 4.552222222222222,
+          "out_deg_mean": 4.552222222222222
+        },
+        "in_deg_hist_l1": 518867.0
+      },
+      "clustering_undirected": {
+        "real": 0.0,
+        "syn": 0.0036887125220458564
+      },
+      "path_length": {
+        "real": {
+          "mean": 1.7628205128205128,
+          "median": 2.0,
+          "n_pairs": 156
+        },
+        "syn": {
+          "mean": 4.768441478185639,
+          "median": 5.0,
+          "n_pairs": 809100
+        }
+      },
+      "node_feature_ks": {
+        "ks_stat_mean": 0.09890073182820781,
+        "ks_stat_max": 0.6096152325709205,
+        "ks_pvalue_mean": 0.6800291579014471,
+        "per_dim": {
+          "ks_stat": [
+            0.6096152325709205,
+            0.026540309228937464,
+            0.007349088535054671,
+            0.0001292007104111148,
+            0.0003158818098469851,
+            0.013550774057954351,
+            0.03480463588432958
+          ],
+          "ks_pvalue": [
+            7.174e-321,
+            0.5428146052613196,
+            0.9999999996796582,
+            1.0,
+            1.0,
+            0.9958321355500136,
+            0.22155736481913813
+          ]
+        }
+      },
+      "edge_feature_ks": {
+        "ks_stat_mean": 0.3218863636363636,
+        "ks_stat_max": 0.73665,
+        "ks_pvalue_mean": 0.15769533969350755,
+        "per_dim": {
+          "ks_stat": [
+            0.5178,
+            0.5705,
+            0.73665,
+            0.7158,
+            0.047799999999999954,
+            0.00034999999999996145,
+            0.028349999999999986,
+            0.10160000000000002,
+            0.09119999999999995,
+            0.7189,
+            0.011800000000000033
+          ],
+          "ks_pvalue": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            3.4403057664869205e-07,
+            1.0,
+            0.008298427923888295,
+            5.2311372246888766e-31,
+            4.650304818801688e-25,
+            0.0,
+            0.7263499646741182
+          ]
+        }
+      },
+      "node_feature_corr": {
+        "corr_fro_norm": 1.2263132248523283,
+        "dims": 7
+      },
+      "edge_feature_corr": {
+        "corr_fro_norm": 3.746789070750059,
+        "dims": 11
+      },
+      "label_rates": {
+        "node_pos_rate_real": 5.9779431467177346e-05,
+        "node_pos_rate_syn": 0.002222222276031971,
+        "edge_pos_rate_real": 0.0013000000035390258,
+        "edge_pos_rate_syn": 0.22553087770938873
+      }
+    },
+    "fraud_patterns": {
+      "node_degree_by_label": {
+        "real": {
+          "sar_in_mean": 0.9032258064516129,
+          "sar_out_mean": 11.870967741935484,
+          "clean_in_mean": 0.038515684361151076,
+          "clean_out_mean": 0.03785999976858191,
+          "sar_frac": 5.977943317527137e-05
+        },
+        "syn": {
+          "sar_in_mean": 7.0,
+          "sar_out_mean": 7.0,
+          "clean_in_mean": 4.546770601336303,
+          "clean_out_mean": 4.546770601336303,
+          "sar_frac": 0.0022222222222222222
+        }
+      }
+    }
+  }
+}

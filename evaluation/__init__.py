@@ -1,2 +1,2 @@
-"""Evaluation utilities (model metrics, similarity diagnostics, link-leakage audit)."""
+"""Evaluation utilities (model metrics, similarity diagnostics)."""
 

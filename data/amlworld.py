@@ -215,6 +215,71 @@ def _build_splits_binary(
     return train_idx, val_idx, test_idx
 
 
+def _try_stratified_splits(
+    y: np.ndarray,
+    train_size: float,
+    val_size: float,
+    seed: int,
+) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
+    """
+    Standard 60/20/20 stratified splits when each class has enough mass for sklearn.
+    Returns None if stratification is not viable.
+    """
+    y = np.asarray(y).reshape(-1)
+    n = int(y.size)
+    n_pos = int(np.sum(y == 1))
+    n_neg = int(np.sum(y == 0))
+    if n < 30 or n_pos < 8 or n_neg < 8:
+        return None
+    idx = np.arange(n, dtype=np.int64)
+    try:
+        tr, tmp, _, _ = train_test_split(idx, y, train_size=train_size, random_state=seed, stratify=y)
+        rel = val_size / (1.0 - train_size)
+        y_tmp = y[tmp]
+        va, te, _, _ = train_test_split(tmp, y_tmp, train_size=rel, random_state=seed, stratify=y_tmp)
+        return np.sort(np.asarray(tr, dtype=np.int64)), np.sort(np.asarray(va, dtype=np.int64)), np.sort(
+            np.asarray(te, dtype=np.int64)
+        )
+    except ValueError:
+        return None
+
+
+def _balance_transactions_edge_prevalence(
+    trans: pd.DataFrame,
+    label_col: str,
+    *,
+    max_rows: int,
+    target_pos_fraction: float,
+    seed: int,
+) -> pd.DataFrame:
+    """
+    Subsample transactions so the laundering label has prevalence ~target_pos_fraction
+    (capped by positives available in ``trans``). Shuffles row order.
+    """
+    rng = np.random.default_rng(int(seed))
+    y = trans[label_col].astype(int).to_numpy()
+    pos_idx = np.flatnonzero(y == 1).astype(np.int64, copy=False)
+    neg_idx = np.flatnonzero(y == 0).astype(np.int64, copy=False)
+    if pos_idx.size == 0:
+        return trans.iloc[: int(max_rows)].copy()
+
+    tpf = float(np.clip(target_pos_fraction, 1e-6, 0.49))
+    n_cap = int(max_rows)
+    n_pos_want = min(int(pos_idx.size), max(1, int(round(n_cap * tpf))))
+    n_neg_want = min(int(neg_idx.size), max(1, n_cap - n_pos_want))
+    # Adjust if negatives exhausted
+    if n_pos_want + n_neg_want > n_cap:
+        n_neg_want = min(neg_idx.size, n_cap - n_pos_want)
+    if n_pos_want + n_neg_want > n_cap:
+        n_pos_want = min(pos_idx.size, n_cap - n_neg_want)
+
+    pick_pos = rng.choice(pos_idx, size=n_pos_want, replace=False) if n_pos_want < pos_idx.size else pos_idx
+    pick_neg = rng.choice(neg_idx, size=n_neg_want, replace=False) if n_neg_want < neg_idx.size else neg_idx
+    rows = np.concatenate([pick_pos, pick_neg])
+    rng.shuffle(rows)
+    return trans.iloc[rows].reset_index(drop=True)
+
+
 def load_amlworld_hi_small_pyg(
     data_dir: Path,
     *,
@@ -223,6 +288,11 @@ def load_amlworld_hi_small_pyg(
     train_size: float = 0.6,
     val_size: float = 0.2,
     add_degree_features: bool = False,
+    slice_mode: str = "prefix",
+    balance_scan_rows: int = 2_000_000,
+    target_edge_pos_fraction: float = 0.05,
+    stratify_edges_if_possible: bool = True,
+    stratify_nodes_if_possible: bool = True,
 ) -> Tuple[Data, Dict[str, Any]]:
     """
     Build a PyTorch Geometric `Data` object from AMLWorld HI-Small.
@@ -233,25 +303,31 @@ def load_amlworld_hi_small_pyg(
     Edge labels (binary):
     - `y_edge`: `is laundering` (transaction fraud label)
 
+    ``slice_mode``:
+    - ``prefix`` (default): first ``max_transactions`` rows in file order (original behavior).
+    - ``balanced_edges``: read up to ``balance_scan_rows`` rows, then subsample to
+      ``max_transactions`` edges with target laundering fraction ``target_edge_pos_fraction``
+      (capped by positives in the scan window). Improves ROC/PR stability on rare labels.
+
     Performance: ``max_transactions is None`` loads the full CSV (millions of rows). The loader
     uses ``nrows`` + a tight ``usecols`` subset when possible. Pass ``max_transactions <= 0``
-    from CLIs to mean "no cap" (same as ``None``).
+    from CLIs to mean "no cap" (same as ``None``). ``balanced_edges`` requires a positive
+    ``max_transactions``.
     """
     if max_transactions is not None and int(max_transactions) <= 0:
         max_transactions = None
 
+    mode = (slice_mode or "prefix").strip().lower()
+    if mode not in ("prefix", "balanced_edges"):
+        raise ValueError(f"Unknown slice_mode {slice_mode!r}; use 'prefix' or 'balanced_edges'.")
+    if mode == "balanced_edges" and max_transactions is None:
+        raise ValueError("slice_mode='balanced_edges' requires max_transactions (target edge count).")
+
     paths = resolve_hi_small_paths(data_dir)
-    nrows = int(max_transactions) if max_transactions is not None else None
     usecols = _transaction_csv_usecols(paths.transactions_csv)
-    read_kw: Dict[str, Any] = {"nrows": nrows, "low_memory": False}
+    read_kw: Dict[str, Any] = {"low_memory": False}
     if usecols is not None:
         read_kw["usecols"] = usecols
-    try:
-        trans = _normalize_cols(pd.read_csv(paths.transactions_csv, **read_kw))
-    except ValueError:
-        # usecols/schema mismatch — fall back to full read
-        trans = _normalize_cols(pd.read_csv(paths.transactions_csv, nrows=nrows, low_memory=False))
-    accts = _normalize_cols(pd.read_csv(paths.accounts_csv))
 
     # Columns confirmed in the user's notebook
     time_col = "timestamp"
@@ -263,8 +339,33 @@ def load_amlworld_hi_small_pyg(
     bank_from_col = "from bank"
     bank_to_col = "to bank"
 
-    if max_transactions is not None:
-        trans = trans.iloc[: int(max_transactions)].copy()
+    if mode == "balanced_edges":
+        read_kw["nrows"] = int(max(10_000, balance_scan_rows))
+        try:
+            trans = _normalize_cols(pd.read_csv(paths.transactions_csv, **read_kw))
+        except ValueError:
+            trans = _normalize_cols(
+                pd.read_csv(paths.transactions_csv, nrows=int(balance_scan_rows), low_memory=False)
+            )
+        trans[label_col] = trans[label_col].astype(int)
+        trans = _balance_transactions_edge_prevalence(
+            trans,
+            label_col,
+            max_rows=int(max_transactions),
+            target_pos_fraction=float(target_edge_pos_fraction),
+            seed=seed,
+        )
+    else:
+        nrows = int(max_transactions) if max_transactions is not None else None
+        read_kw["nrows"] = nrows
+        try:
+            trans = _normalize_cols(pd.read_csv(paths.transactions_csv, **read_kw))
+        except ValueError:
+            trans = _normalize_cols(pd.read_csv(paths.transactions_csv, nrows=nrows, low_memory=False))
+        if max_transactions is not None:
+            trans = trans.iloc[: int(max_transactions)].copy()
+
+    accts = _normalize_cols(pd.read_csv(paths.accounts_csv))
 
     trans[label_col] = trans[label_col].astype(int)
     trans[time_col] = _parse_timestamp(trans[time_col])
@@ -351,10 +452,20 @@ def load_amlworld_hi_small_pyg(
         y_edge=y_edge,
     )
 
-    # Masks / splits
-    node_train, node_val, node_test = _build_splits_binary(
-        y_node, train_size=train_size, val_size=val_size, seed=seed
-    )
+    # Masks / splits (stratified 60/20/20 when viable — better PR/ROC stability; else legacy allocation)
+    if stratify_nodes_if_possible:
+        strat_n = _try_stratified_splits(y_node, train_size=train_size, val_size=val_size, seed=seed)
+    else:
+        strat_n = None
+    if strat_n is not None:
+        node_train, node_val, node_test = strat_n
+        split_node_policy = "stratified_60_20_20_sklearn"
+    else:
+        node_train, node_val, node_test = _build_splits_binary(
+            y_node, train_size=train_size, val_size=val_size, seed=seed
+        )
+        split_node_policy = "size_matched_unstratified_plus_min1_then_round_robin_surplus_positives"
+
     node_train_mask = torch.zeros(data.num_nodes, dtype=torch.bool)
     node_val_mask = torch.zeros(data.num_nodes, dtype=torch.bool)
     node_test_mask = torch.zeros(data.num_nodes, dtype=torch.bool)
@@ -366,9 +477,19 @@ def load_amlworld_hi_small_pyg(
     data.node_test_mask = node_test_mask
 
     e_y = y_edge.cpu().numpy()
-    edge_train, edge_val, edge_test = _build_splits_binary(
-        e_y, train_size=train_size, val_size=val_size, seed=seed
-    )
+    if stratify_edges_if_possible:
+        strat_e = _try_stratified_splits(e_y, train_size=train_size, val_size=val_size, seed=seed)
+    else:
+        strat_e = None
+    if strat_e is not None:
+        edge_train, edge_val, edge_test = strat_e
+        split_edge_policy = "stratified_60_20_20_sklearn"
+    else:
+        edge_train, edge_val, edge_test = _build_splits_binary(
+            e_y, train_size=train_size, val_size=val_size, seed=seed
+        )
+        split_edge_policy = "size_matched_unstratified_plus_min1_then_round_robin_surplus_positives"
+
     split_node_label_counts = _split_label_counts(y_node, node_train, node_val, node_test)
     split_edge_label_counts = _split_label_counts(e_y, edge_train, edge_val, edge_test)
     data.edge_train_idx = torch.tensor(edge_train, dtype=torch.long)
@@ -396,7 +517,15 @@ def load_amlworld_hi_small_pyg(
             "edge_payfmt_col": payfmt_col,
             "edge_direction": f"{orig_col} -> {bene_col}",
         },
-        "split_policy": "size_matched_unstratified_plus_min1_then_round_robin_surplus_positives",
+        "slice_mode": mode,
+        "balance_scan_rows": int(balance_scan_rows) if mode == "balanced_edges" else None,
+        "target_edge_pos_fraction": float(target_edge_pos_fraction) if mode == "balanced_edges" else None,
+        "stratify_edges_if_possible": bool(stratify_edges_if_possible),
+        "stratify_nodes_if_possible": bool(stratify_nodes_if_possible),
+        "split_node_policy": split_node_policy,
+        "split_edge_policy": split_edge_policy,
+        # Back-compat: edge split policy (older JSON readers used this key name).
+        "split_policy": split_edge_policy,
         "split_node_label_counts": split_node_label_counts,
         "split_edge_label_counts": split_edge_label_counts,
     }

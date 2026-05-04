@@ -1,207 +1,139 @@
-# AMLWorld Synthetic Graphs — Evaluating Performance of Anonymized Data
+# AMLWorld → GraphMaker → Transfer (quick pipeline)
 
-## Quick start
+This repo builds a **PyTorch Geometric** transaction graph from **AMLWorld HI-Small**, optionally **rebalances** rare fraud labels, trains **GraphMaker-Async** on a **small induced subgraph** (fast), exports a synthetic **`.pt`**, and runs a **transfer experiment**: train GraphSAGE + heads on real data, then on synthetic data, then **evaluate on the real test split**.
 
-1. **Data:** put `HI-Small_Trans.csv` and `HI-Small_accounts.csv` in `data/raw/` (from [Kaggle AML](https://www.kaggle.com/datasets/ealtman2019/ibm-transactions-for-anti-money-laundering-aml)). If they are missing, `scripts/run_experiment.py` tries a one-time Kaggle CLI download when `kaggle` is configured.
-2. **Install:** `pip install -e .` — for DP runs also: `pip install -e ".[dp]"`.
-3. **Transfer experiment (default: first 600k tx rows, GraphMaker `.pt`, DP):**  
-   `python3 -m scripts.run_experiment --use_dp --out_dir outputs`  
-   Faster smoke (no GraphMaker file):  
-   `python3 -m scripts.run_experiment --generator degree_preserving --use_dp --max_transactions 50000 --out_dir outputs`
-4. **Markdown report from a result JSON:**  
-   `python3 -m scripts.write_md_report --transfer_json outputs/<run>.json --out_md outputs/report.md`  
-   Optional PGB block: add `--pgb_json outputs/pgb_style_....json`.
+## 1. Data and install
 
-## 1. Introduction and Motivation
+1. Put **`HI-Small_Trans.csv`** and **`HI-Small_accounts.csv`** in `data/raw/` ([Kaggle AML](https://www.kaggle.com/datasets/ealtman2019/ibm-transactions-for-anti-money-laundering-aml)). If missing, `scripts/run_experiment.py` can try a one-time Kaggle CLI download when `kaggle` is configured.
+2. **Base install:** `pip install -e .`
+3. **GraphMaker (DGL):** `pip install -e ".[graphmaker]"` — DGL must match your PyTorch build ([DGL start](https://www.dgl.ai/pages/start.html)).
 
-The application of machine learning to anti–money laundering (AML) has introduced a fundamental challenge: the most valuable datasets for model development are also the most restricted. Financial transaction data is highly sensitive, and regulatory constraints limit its availability for external analysis, benchmarking, and model development.
+## 2. Main command: end-to-end GraphMaker pipeline
 
-Synthetic data generation offers a principled approach to addressing this constraint. Instead of sharing real transaction data, a financial institution may release a synthetic graph that approximates the statistical and structural properties of the original dataset. The central question, however, is not whether the synthetic data “looks similar,” but whether it preserves the information necessary for downstream tasks.
+### 2a. Default smoke run (1000-node GraphMaker slice)
 
-This project investigates the following problem:
+From the **repository root** (directory that contains `pyproject.toml`):
 
-Can a model trained on a synthetic transaction graph achieve comparable performance when evaluated on the original real transaction graph?
+```bash
+WANDB_MODE=disabled python3 -m scripts.run_graphmaker_pipeline --data_dir data/raw
+```
 
-To answer this, we construct an experimental framework centered on anonymized graphs. Specifically, we compare model performance when trained on real data versus synthetic data, holding the evaluation dataset fixed. This provides a task-driven measure of synthetic data quality.
+This writes under **`outputs/graphmaker/`** by default (GraphMaker graph, checkpoint copy, synthetic `.pt`, and `transfer_*.json` next to them).
 
-## 2. Data and Graph Representation
+| Stage | What happens |
+|-------|----------------|
+| **Build DGL graph** | Load CSV → PyG → **random `max_nodes` subset** (default 1000) for GraphMaker only (`generators/graphmaker_aml/build.py`). |
+| **Train GraphMaker** | Short epochs + large minibatches via env (see `scripts/run_graphmaker_pipeline.py`); upstream trains over **all upper-triangular node pairs** each epoch → cost is **Θ(N²)** in `max_nodes`. |
+| **Sample → PyG** | `scripts/graphmaker_sample_to_pyg.py` writes `synthetic_from_graphmaker.pt`. |
+| **Transfer** | `scripts/run_experiment.py` trains/evaluates on the **full** real PyG slice (same `max_transactions` / slice flags), not the tiny DGL node set. |
 
-The experiments are conducted using the AMLWorld HI-Small dataset, which models financial activity as a directed transaction graph.
+### 2b. 900-node run with balanced edges (recommended preset)
 
-- Nodes represent accounts  
-- Edges represent transactions between accounts
+Use this when you want **more laundering edges in the real slice** and a **900-node** GraphMaker training graph (same setup as the reference numbers in §3).
 
-Each transaction includes attributes such as amount, timestamp, and payment format, along with labels indicating whether it is associated with laundering activity.
+1. **Go to repo root** (example on macOS if the project lives in iCloud; quote paths with spaces):
 
-The dataset is converted into a graph representation using PyTorch Geometric. This involves:
+   ```bash
+   cd "/path/to/Final Project"
+   ```
 
-- Constructing a directed edge index from sender to receiver  
-- Defining node features (e.g., bank identity, entity type)  
-- Defining edge features (e.g., log-transformed amount, relative time, payment type)
+2. **(Optional) Virtualenv:** `python3 -m venv .venv && source .venv/bin/activate`
 
-The resulting graph captures both relational structure and transactional attributes, enabling the application of graph-based learning methods.
+3. **Install** (once per environment): `pip install -e .` then `pip install -e ".[graphmaker]"` as in §1.
 
-## 3. Fraud Detection Model
+4. **Data files:** ensure these exist relative to the repo root:
 
-### 3.1 GraphSAGE for Node Representation
+   - `data/raw/HI-Small_Trans.csv`
+   - `data/raw/HI-Small_accounts.csv`
 
-Fraud detection in transaction networks is inherently relational, as suspicious behavior often arises from patterns of interaction rather than isolated events. To capture these dependencies, we employ GraphSAGE, a graph neural network that learns node representations through neighborhood aggregation.
+5. **Sanity-check DGL / GraphMaker** (should print `torch …`, `dgl …`, and `GraphBolt path OK`):
 
-At each layer, a node updates its representation by combining its own features with an aggregate of its neighbors’ features. Stacking multiple layers allows the model to incorporate information from progressively larger neighborhoods. A linear classifier is then applied to these embeddings to predict whether an account is associated with fraudulent activity.
+   ```bash
+   WANDB_MODE=disabled python3 -m scripts.verify_graphmaker_env
+   ```
 
-### 3.2 Edge Classification
+6. **Run the full pipeline** (trains GraphMaker on **900** nodes, builds a **20k-edge** balanced real slice, writes everything under **`outputs/run/`** — that folder is overwritten each time):
 
-In addition to node-level inference, the model performs edge classification. For each transaction, a feature vector is constructed by concatenating:
+   ```bash
+   WANDB_MODE=disabled python3 -m scripts.run_graphmaker_pipeline \
+     --data_dir data/raw \
+     --out_dir outputs/run \
+     --max_transactions 20000 \
+     --max_nodes 900 \
+     --slice_mode balanced_edges \
+     --balance_scan_rows 250000 \
+     --target_edge_pos_fraction 0.18 \
+     --syn_edge_fraud_rate 0.22
+   ```
 
-- The embedding of the source node  
-- The embedding of the destination node  
-- The edge feature vector
+7. **Check it worked:** the process exits with code **0**, and you should see a final line like  
+   `Wrote results to outputs/run/transfer_hi_small_n518573_e20000_m20000_graphmaker.json`.
 
-A multilayer perceptron is then used to classify whether the transaction is fraudulent. This setup allows the model to use both the surrounding graph structure and the transaction’s own attributes.
+8. **Artifacts in `outputs/run/`** after a successful run:
 
-### 3.3 Edges-only (transaction-focused) training
+   | File / directory | Role |
+   |------------------|------|
+   | `amlworld_graph.bin` | DGL graph used for GraphMaker (900-node induced subgraph). |
+   | `amlworld_cpts/` | Copied checkpoint (e.g. `Async_TX6_TE9.pth`) used for sampling. |
+   | `synthetic_from_graphmaker.pt` | PyG synthetic graph for transfer. |
+   | `transfer_hi_small_n518573_e20000_m20000_graphmaker.json` | Metrics, splits, similarity diagnostics. |
 
-By default, the transfer pipeline first trains a **node classifier** (account labels), then an **edge classifier** on top of the same GraphSAGE encoder. For settings where the node task is uninformative or too costly, you can run `**--edges_only`** (`scripts/run_experiment.py` → `ModelConfig.edges_only` in `pipeline/transfer_experiment.py`):
+9. **Rough runtime:** often **about one to a few minutes** on a recent laptop (CSV scan + short GraphMaker epochs + short GNN transfer); CPU vs MPS/CUDA and disk speed dominate.
 
-- **Skipped:** node training on real and synthetic, and node transfer evaluation on the real test split. The JSON `result.node` records `skipped: true` and a short reason instead of metrics.
-- **Still run:** joint training of the **GraphSAGE encoder and edge MLP** on the edge objective (real graph, then synthetic graph), edge transfer evaluation on the real test edges, and the usual structural / fraud-pattern reports.
-- **DP accounting:** with `--use_dp` and `--edges_only`, RDP metadata appears only for `**edge_real`** and `**edge_syn**` (no separate node DP phases). The reported `dp_composition_note` reflects that.
+**What the flags do**
 
-**Checkpoints (DP training):** pass `**--checkpoint_dir PATH`** together with `**--use_dp**`. Each DP phase writes per-epoch weights and a `*_best.pt` when validation PR-AUC improves: `**node_real_***`, `**edge_real_***`, `**node_syn_***`, `**edge_syn_***` (edge checkpoints bundle encoder + edge head; see `models/dp_train.py`). With `**--edges_only**`, only the `edge_*` files are written. Result JSON includes `**checkpoint_dir**` (and legacy `**edge_checkpoint_dir**`, same path) plus per-phase `checkpoints_written` in `dp_accounting`.
+- **`--slice_mode balanced_edges`**: scan up to `balance_scan_rows`, then subsample to `max_transactions` edges with about `target_edge_pos_fraction` laundering edges (capped by positives in the window). Improves **train/val/test positive counts** on real edges so PR-AUC is interpretable.
+- **`--syn_edge_fraud_rate`**: Bernoulli rate for **synthetic** edge labels (GraphMaker does not recover real fraud labels); set high enough that synthetic **edge** splits contain positives.
+- **`--max_nodes`**: smaller ⇒ faster GraphMaker; **`min_synthetic_nodes`** defaults to `min(8192, max_nodes)` so transfer does not require 8k nodes when the training graph is tiny.
 
-Output filenames append `**_edgesonly**` and `**_dp**` when those flags are used (e.g. `…_degree_preserving_edgesonly_dp.json`).
+**Slower / YAML-faithful GraphMaker:** `--full_graphmaker_train` (200 epochs, original batch sizes — not for CPU). **Longer GNN transfer:** `--full_transfer` (drops the short demo `--node_epochs` / `--edge_epochs` overrides).
 
-## 4. Synthetic Graph Generation
+## 3. How to read the result JSON
 
-The project evaluates two approaches to synthetic graph generation.
+By default, `run_graphmaker_pipeline` writes **`transfer_hi_small_n<N>_e<E>_m<M>_graphmaker.json`** in the same directory as `--out_dir` (override with `--experiment_out_dir` if you want JSON elsewhere). The checked-in reference run is **`outputs/run/`** (GraphMaker files + that JSON).
 
-### 4.1 Degree-Preserving Baseline
+| Block | Meaning |
+|-------|---------|
+| `dataset_meta` | Slice (`slice_mode`, `balance_scan_rows`, …), **`split_*_label_counts`** (positives per split — check these before trusting AUC). |
+| `result.node` | Real train/val/test vs **transfer** (encoder trained on synthetic, evaluated on **real** node test mask). |
+| `result.edge` | Same for edges; **`synthetic_train_eval`** shows whether the synthetic graph had positives in each split. |
+| `result.similarity` | Structural / feature alignment diagnostics (degree, path length, KS on features). |
 
-The baseline generator preserves the in-degree and out-degree sequences of the original graph. Edges are reassigned randomly while maintaining these degree constraints. Node and edge features are sampled independently from empirical distributions.
+**Interpretation:** if real **test** has only a handful of positives, ROC can swing; **PR-AUC** plus **`n_pos` / `n_neg`** in each row is the honest read. Large **drop_test** between real-trained and transfer on the same real test fold means synthetic pre-training did not substitute for real labels under that synthetic process.
 
-This method keeps basic graph statistics intact but does not attempt to reproduce more complex patterns like clusters or repeated transaction motifs.
+### Reference numbers (900-node GraphMaker demo, 20k balanced edges)
 
-### 4.2 GraphMaker
+From `outputs/run/transfer_hi_small_n518573_e20000_m20000_graphmaker.json` (with `amlworld_graph.bin`, `amlworld_cpts/`, and `synthetic_from_graphmaker.pt` in the same folder):
 
-GraphMaker is a diffusion-based model for generating graphs with attributes. The idea is to learn how to reconstruct a graph after it has been gradually corrupted with noise.
+**Sample sizes (real)**  
+- Nodes (full graph): 518,573; **node test:** 103,715 (**6** pos).  
+- **Edges:** 20,000 loaded; **edge test:** 4,000 (**5** pos).  
+- Stratified **60/20/20** edges when counts allow (`split_edge_policy: stratified_60_20_20_sklearn`).
 
-During training, the model observes increasingly noisy versions of the original graph and learns how to reverse that process. At generation time, it starts from noise and iteratively builds a graph.
+**PR-AUC (illustrative)**
 
-In practice, GraphMaker can first generate node attributes and then generate edges based on those attributes. This is useful for financial data, where the type of account often influences how it interacts with others.
+| Task | Real → real (test) | Synthetic → real (test) |
+|------|-------------------:|--------------------------:|
+| Node | 0.00156 | 0.000097 |
+| Edge | 1.000 | 0.00077 |
 
-Compared to the baseline, GraphMaker is designed to capture more complex structure in the data rather than just matching simple statistics.
+Edge real test PR-AUC = 1 with **5** positives is still noisy; the contrast with transfer is the main story for this demo.
 
-## 5. Experimental Framework
+## 4. Other entry points (short)
 
-The pipeline follows a consistent structure:
+| Script | Role |
+|--------|------|
+| `scripts/run_experiment.py` | Transfer only: point `--synthetic_pt` at an existing `.pt`, or `--generator degree_preserving` for a non-GraphMaker baseline. |
+| `scripts/graphmaker_train_amlworld.py` | Train only (writes `amlworld_graph.bin` + copies checkpoints). Respects same fast env defaults unless `GRAPHMAKER_USE_YAML_DEFAULTS=1`. |
+| `scripts/graphmaker_sample_to_pyg.py` | Sample only (needs `AMLWORLD_DGL_GRAPH` + checkpoint). |
 
-1. Build a graph from AMLWorld data
-2. Train a GraphSAGE-based model on the real graph (**DP-SGD**: random *k*-hop subgraph minibatches, gradient clipping, Gaussian noise; see `models/dp_train.py`). With `**--edges_only`**, this step omits the node classifier and trains the encoder **only** through the edge objective.
-3. Generate a synthetic graph
-4. Train the same model on the synthetic graph (same DP-SGD recipe; again node training is omitted when `**--edges_only`**)
-5. Evaluate both models on the real test set (node metrics omitted in JSON when edges-only)
+**Optional:** differential privacy and edges-only training paths still exist in `models/dp_train.py` and `scripts/run_experiment.py` (`--help`); they are not required for the GraphMaker pipeline above.
 
-The main comparison is between:
-
-- Training on real data and testing on real data  
-- Training on synthetic data and testing on real data
-
-This gives a direct sense of how useful the synthetic data is for the actual task.
-
-Because fraud is extremely rare, a few practical adjustments are needed:
-
-- The loss function is weighted to account for imbalance  
-- Extremely large class weights are capped to avoid unstable training  
-- Training schedules are slightly adjusted to ensure convergence  
-- Dropout is used for regularization
-
-## 6. Results
-
-This section has two parts: **(1)** GraphMaker transfer metrics on the held-out **real** test split—**ROC-AUC** and **PR-AUC** (PR-AUC tracks rare positives more directly; node fraud is so sparse that node PR-AUC stays small even when ROC-AUC is moderate) and **(2)** **PGB-style structural fidelity** (GraphMaker column only—same 300k slice, `outputs/pgb_style_n518573_e300000_m300000.json`).
-
-Experiments use **differentially private training** (`--use_dp`), full pipeline (node then edge on real, then synthetic), **`--generator from_pt`**, and the **first 300,000** HI-Small_Trans rows (`max_transactions_loaded: 300000`). GraphMaker weights are **lazy-loaded after real training**; DP training uses **balanced pos/neg minibatches** (`models/dp_train.py`, `pipeline/transfer_experiment.py`). Source JSON: `outputs/transfer_hi_small_n518573_e300000_m300000_graphmaker_dp.json`.
-
-### GraphMaker transfer (test ROC-AUC)
-
-Held-out **real** test nodes (account task) and **60,000** real test edges (transaction task).
-
-| Task | Real → Real | Synthetic → Real |
-| ---- | -----------: | ----------------: |
-| Node (account fraud) | **0.821** | **0.464** |
-| Edge (transaction fraud) | **0.765** | **0.406** |
-
-### GraphMaker transfer (test PR-AUC)
-
-Same folds as above. **Four decimals** on PR-AUC match `scripts/write_md_report.py`.
-
-| Task | Real → Real | Synthetic → Real |
-| ---- | -----------: | ----------------: |
-| Node (account fraud) | **0.0004** | **0.0001** |
-| Edge (transaction fraud) | **0.4636** | **0.0003** |
-
-Synthetic→Real uses the encoder trained on the **GraphMaker** `.pt` graph and evaluated on the **same** real test masks / edge indices; the checked-in synthetic sample is small/degenerate, so transfer metrics drop versus real training.
-
-**Scale (not ~5M):** **300,000** transactions → **300,000** edges, **518,573** nodes; **60% / 20% / 20%** splits on nodes and edges.
-
-**We did not run this table on the full ~5M-row CSV.** Use `--all_transactions --use_dp --generator from_pt` (plus paths) and refresh from the new JSON.
-
-### Edges-only DP (optional)
-
-Small **illustrative** run for **`--edges_only`** + checkpoints: see `outputs/transfer_hi_small_n518573_e5000_m5000_degree_preserving_edgesonly_dp.json` and `dp_accounting` therein (not the main results above).
-
-### PGB-style structural evaluation (Liu et al., arXiv:2408.02928)
-
-We report **structural fidelity** diagnostics in `evaluation/pgb_style.py` (undirected simple projections; **not** an ε guarantee from GraphMaker). Same **300,000**-transaction real slice as above. Full JSON: `outputs/pgb_style_n518573_e300000_m300000.json` (regenerate with `python3 -m scripts.run_pgb_style --max_transactions 300000 --out_dir outputs`).
-
-
-| Metric (lower is often better for distances / RE) | GraphMaker |
-| ------------------------------------------------- | ---------: |
-| Mean scalar relative error (capped)¹              | 0.500      |
-| Q6 — degree distribution (KS statistic)           | 0.139      |
-| Q9 — shortest-path histogram L1                   | 1.000      |
-| Q12 — community agreement (NMI)                   | —²         |
-| Q11 — attribute correlation / MRE (Table IV)    | 0.139      |
-| Q15 — eigenvector centrality MAE                  | —⁴         |
-| Directed edge-set Jaccard (real vs syn)           | 0.000      |
-| Aligned node-feature mean L1                      | —³         |
-
-
-¹ Mean of finite relative errors for scalar graph queries (|V|, |E|, triangles, degrees, diameter, etc.); see JSON `summary_mean_RE_scalar_queries`.  
-² Skipped when the largest connected components are too large for greedy modularity or the GraphMaker graph is degenerate.  
-³ GraphMaker export has **800** nodes vs **518,573** on the real graph, so feature vectors are not row-aligned.  
-⁴ GraphMaker row: eigenvector centrality query **skipped** in JSON (`GCC intersection empty or too large for EVC`).
-
-**Note:** The checked-in `outputs/graphmaker/synthetic_from_graphmaker.pt` currently contains **only a self-loop** on one node (no usable undirected edges), so the GraphMaker PGB row mainly reflects that degenerate sample. Re-sample from GraphMaker to obtain a dense synthetic graph before reading much into those numbers.
-
-## 7. Discussion
-
-On the 300k slice with **balanced DP minibatches**, **GraphMaker Real → Real** is strong on **ROC-AUC** for node and edge (**~0.82** / **~0.77**), while **Synthetic → Real** falls on **ROC-AUC** and especially on **PR-AUC** (edge PR-AUC near baseline; node PR-AUC tiny under label sparsity) because the checked-in GraphMaker export is tiny/degenerate, not because the real phase is mis-specified.
-
-**Edges-only** runs skip the node classifier and halve DP bookkeeping to edge phases only; see §6 optional pointer.
-
-Treat the GraphMaker **PGB** row as structural diagnostics on that same export, not a claim about a full-scale synthetic AML graph until you re-sample a denser graph.
-
-## 8. Code layout and longer runs
+## 5. Code map
 
 | Path | Role |
 |------|------|
-| `data/amlworld.py` | CSV → PyG `Data` |
-| `generators/` | Degree-preserving baseline; GraphMaker bridge |
-| `models/` | GraphSAGE, `train_utils.py`, **DP-SGD** in `dp_train.py` |
-| `pipeline/transfer_experiment.py` | End-to-end transfer; optional **`--edges_only`** |
-| `evaluation/` | Similarity, **PGB-style** (`pgb_style.py`), link leakage |
-
-**Regenerate §6 tables:** match `--max_transactions` / `--generator` to the JSON you care about, then run `scripts/run_pgb_style.py` for PGB. **`opacus`** supplies RDP (ε, δ) in logs (`pip install -e ".[dp]"`).
-
-**Edges-only DP + checkpoints** (encoder + edge head only):
-
-```bash
-python3 -m scripts.run_experiment --use_dp --edges_only --generator degree_preserving \
-  --checkpoint_dir outputs/my_edge_checkpoints --device mps --out_dir outputs
-```
-
-**Full ~5M-row CSV:** `--all_transactions` or `--max_transactions 0`. Expect large RAM and long runs on CPU; use **GPU/MPS** and lower `--dp_steps_per_epoch`, `--node_epochs`, `--edge_epochs` while iterating. PGB caps edges per projection (`--pgb_max_edge_rows`, default 600k).
-
-**Device:** auto-picks CUDA, else MPS, else CPU (`models/torch_device.py`); override with `--device cpu` if you hit backend bugs.
-
-Other utilities: `scripts/visualize_outputs.py`, `scripts/run_link_leakage_audit.py`, GraphMaker train/sample scripts under `scripts/` (see `--help` on each).
+| `data/amlworld.py` | CSV → PyG; **`slice_mode`**, **`balanced_edges`**, stratified splits when viable. |
+| `generators/graphmaker_aml/build.py` | PyG → DGL for GraphMaker; induced subgraph. |
+| `third_party/GraphMaker/train_amlworld_async.py` | Training loop; env overrides for fast runs. |
+| `pipeline/transfer_experiment.py` | Real / synthetic training and **transfer** evaluation. |

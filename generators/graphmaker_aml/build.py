@@ -14,6 +14,7 @@ import numpy as np
 import torch
 
 from data.amlworld import load_amlworld_hi_small_pyg
+from generators.fraud_enriched_subgraph import extract_fraud_enriched_subgraph
 
 
 def _induced_subgraph(
@@ -90,19 +91,45 @@ def build_dgl_for_graphmaker(
     max_transactions: int = 200_000,
     max_nodes: int = 3500,
     seed: int = 7,
+    fraud_enriched: bool = False,
+    neighbor_hops: int = 2,
+    slice_mode: str = "prefix",
+    balance_scan_rows: int = 2_000_000,
+    target_edge_pos_fraction: float = 0.05,
+    stratify_edges_if_possible: bool = True,
+    stratify_nodes_if_possible: bool = True,
 ) -> dgl.DGLGraph:
     pyg, _ = load_amlworld_hi_small_pyg(
-        data_dir, max_transactions=max_transactions, seed=seed
-    )
-    ei, yn, ye, xf, eattr = _induced_subgraph(
-        pyg.edge_index,
-        pyg.y_node,
-        pyg.y_edge,
-        pyg.x,
-        pyg.edge_attr,
-        max_nodes=max_nodes,
+        data_dir,
+        max_transactions=max_transactions,
         seed=seed,
+        slice_mode=slice_mode,
+        balance_scan_rows=balance_scan_rows,
+        target_edge_pos_fraction=target_edge_pos_fraction,
+        stratify_edges_if_possible=stratify_edges_if_possible,
+        stratify_nodes_if_possible=stratify_nodes_if_possible,
     )
+    if fraud_enriched:
+        sub, _sub_meta = extract_fraud_enriched_subgraph(
+            pyg, max_nodes=max_nodes, seed=seed, neighbor_hops=neighbor_hops
+        )
+        ei, yn, ye, xf, eattr = (
+            sub.edge_index,
+            sub.y_node,
+            sub.y_edge,
+            sub.x,
+            sub.edge_attr,
+        )
+    else:
+        ei, yn, ye, xf, eattr = _induced_subgraph(
+            pyg.edge_index,
+            pyg.y_node,
+            pyg.y_edge,
+            pyg.x,
+            pyg.edge_attr,
+            max_nodes=max_nodes,
+            seed=seed,
+        )
     n = yn.size(0)
     feat = _binarize_features_median(xf).float()
     # Drop constant columns (GraphMaker / one_hot expects variability; mirrors Cora path).

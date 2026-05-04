@@ -11,6 +11,9 @@ Example:
     --model_path outputs/graphmaker/amlworld_cpts/Async_TX6_TE9.pth \\
     --out_pt outputs/graphmaker/synthetic_from_graphmaker.pt \\
     --data_dir data/raw --max_transactions 300000
+
+Synthetic edge labels are Bernoulli with rate derived from the real slice by default.
+Use --syn_edge_fraud_rate_floor to raise the rate for more stable synthetic PR-AUC (less realistic vs the CSV).
 """
 from __future__ import annotations
 
@@ -20,6 +23,7 @@ import os
 import sys
 from pathlib import Path
 
+import numpy as np
 import torch
 
 
@@ -33,7 +37,46 @@ def main() -> int:
     p.add_argument("--out_pt", type=Path, default=root / "outputs" / "graphmaker" / "synthetic_from_graphmaker.pt")
     p.add_argument("--data_dir", type=Path, default=root / "data" / "raw")
     p.add_argument("--max_transactions", type=int, default=300_000)
+    p.add_argument(
+        "--slice_mode",
+        type=str,
+        default="prefix",
+        choices=["prefix", "balanced_edges"],
+        help="Must match the slice used to build amlworld_graph.bin for consistent feature widths / rates.",
+    )
+    p.add_argument("--balance_scan_rows", type=int, default=2_000_000)
+    p.add_argument("--target_edge_pos_fraction", type=float, default=0.05)
+    p.add_argument(
+        "--no_stratify_edges",
+        action="store_true",
+        help="Forwarded to loader (metadata only unless you reload splits here).",
+    )
+    p.add_argument(
+        "--no_stratify_nodes",
+        action="store_true",
+    )
+    p.add_argument(
+        "--syn_edge_fraud_rate",
+        type=float,
+        default=None,
+        help="If set, Bernoulli rate for synthetic y_edge (overrides real-slice rate). Clamped to [0, 0.5].",
+    )
+    p.add_argument(
+        "--syn_edge_fraud_rate_floor",
+        type=float,
+        default=0.0,
+        help="Raise synthetic edge fraud rate to at least this value (then cap at 0.5). Ignored if --syn_edge_fraud_rate is set.",
+    )
+    p.add_argument(
+        "--min_directed_edges",
+        type=int,
+        default=4096,
+        help="Augment sparse GraphMaker E with a ring + random pairs until at least this many directed edges.",
+    )
     args = p.parse_args()
+    if args.slice_mode == "balanced_edges" and int(args.max_transactions) <= 0:
+        print("error: balanced_edges needs a positive --max_transactions.", file=sys.stderr)
+        return 1
 
     if not os.environ.get("AMLWORLD_DGL_GRAPH"):
         default_g = (root / "outputs" / "graphmaker" / "amlworld_graph.bin").resolve()
@@ -49,9 +92,20 @@ def main() -> int:
     from generators.graphmaker_aml.sample_to_pyg import graphmaker_sample_to_pyg
 
     real, meta = load_amlworld_hi_small_pyg(
-        args.data_dir, max_transactions=args.max_transactions, seed=7
+        args.data_dir,
+        max_transactions=int(args.max_transactions),
+        seed=7,
+        slice_mode=str(args.slice_mode),
+        balance_scan_rows=int(args.balance_scan_rows),
+        target_edge_pos_fraction=float(args.target_edge_pos_fraction),
+        stratify_edges_if_possible=not bool(args.no_stratify_edges),
+        stratify_nodes_if_possible=not bool(args.no_stratify_nodes),
     )
     edge_rate = float(meta.get("edge_label_pos_rate", real.y_edge.float().mean().item()))
+    if args.syn_edge_fraud_rate is not None:
+        edge_fraud_rate = float(np.clip(float(args.syn_edge_fraud_rate), 0.0, 0.5))
+    else:
+        edge_fraud_rate = float(np.clip(max(edge_rate, float(args.syn_edge_fraud_rate_floor)), 0.0, 0.5))
 
     try:
         state_dict = torch.load(args.model_path, map_location="cpu", weights_only=False)
@@ -111,12 +165,24 @@ def main() -> int:
         E_0.cpu(),
         ref_x_dim=int(real.x.size(1)),
         ref_edge_attr_dim=int(real.edge_attr.size(1)),
-        edge_fraud_rate=min(edge_rate, 0.5),
+        edge_fraud_rate=edge_fraud_rate,
         seed=7,
+        min_directed_edges=int(args.min_directed_edges),
     )
 
     args.out_pt.parent.mkdir(parents=True, exist_ok=True)
-    torch.save({"data": syn, "meta": {"source": "graphmaker_async", "checkpoint": str(args.model_path)}}, args.out_pt)
+    torch.save(
+        {
+            "data": syn,
+            "meta": {
+                "source": "graphmaker_async",
+                "checkpoint": str(args.model_path),
+                "real_edge_label_pos_rate": edge_rate,
+                "syn_edge_fraud_rate": edge_fraud_rate,
+            },
+        },
+        args.out_pt,
+    )
     print(f"Wrote {args.out_pt}")
     return 0
 

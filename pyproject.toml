@@ -21,8 +21,15 @@ dependencies = [
 dev = ["ruff>=0.6.0"]
 # RDP (ε, δ) accounting for DP-SGD training (`models/dp_train.py`).
 dp = ["opacus>=1.4.0"]
-# GraphMaker + DGL: pin torch to a version that matches bundled GraphBolt libs (often 2.2.x CPU wheels).
-graphmaker = ["dgl>=2.2,<2.3", "torchdata>=0.7.1", "pydantic>=2"]
+# GraphMaker + DGL: DGL 2.2 mac wheels ship GraphBolt only for certain torch versions (not 2.8+).
+# After: pip install -e ".[graphmaker]"  run  python3 -m scripts.verify_graphmaker_env
+graphmaker = [
+  "torch>=2.2.2,<=2.3.0",
+  "dgl>=2.2,<2.3",
+  "torchdata>=0.7.1,<0.8",
+  "wandb>=0.16.0",
+  "pydantic>=2",
+]
 
 [tool.setuptools]
 packages = ["data", "models", "generators", "evaluation", "pipeline", "scripts"]
