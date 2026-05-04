@@ -3,3 +3,9 @@ __pycache__/
 *.pyc
 .eggs/
 *.egg-info/
+
+# Regenerate with scripts; keeps the repo clone small
+outputs/_smoke_*/
+outputs/_cmp_dp*/
+outputs/checkpoints_5m_full_dp/
+outputs/checkpoints_5m_mps_edges/
