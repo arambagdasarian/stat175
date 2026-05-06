@@ -48,6 +48,15 @@ def main() -> int:
     p.add_argument("--no_stratify_edges", action="store_true")
     p.add_argument("--no_stratify_nodes", action="store_true")
     p.add_argument(
+        "--sampling",
+        type=str,
+        default="random_induced",
+        choices=["random_induced", "fraud_enriched", "snowball"],
+        help="Subgraph sampling strategy passed to graphmaker_train_amlworld.",
+    )
+    p.add_argument("--snowball_top_k", type=int, default=20, help="--sampling snowball: SAR seed count.")
+    p.add_argument("--snowball_wave_limit", type=int, default=15, help="--sampling snowball: max expansion waves.")
+    p.add_argument(
         "--syn_edge_fraud_rate",
         type=float,
         default=None,
@@ -158,6 +167,12 @@ def main() -> int:
         str(args.balance_scan_rows),
         "--target_edge_pos_fraction",
         str(args.target_edge_pos_fraction),
+        "--sampling",
+        str(args.sampling),
+        "--snowball_top_k",
+        str(int(args.snowball_top_k)),
+        "--snowball_wave_limit",
+        str(int(args.snowball_wave_limit)),
     ]
     if args.no_stratify_edges:
         train_cmd.append("--no_stratify_edges")

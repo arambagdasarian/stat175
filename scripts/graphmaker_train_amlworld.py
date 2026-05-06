@@ -58,11 +58,25 @@ def main() -> int:
         help="GraphMaker cost scales as N² over all node pairs; use ≤1500 for quick runs.",
     )
     p.add_argument(
+        "--sampling",
+        type=str,
+        default="random_induced",
+        choices=["random_induced", "fraud_enriched", "snowball"],
+        help=(
+            "Subgraph sampling strategy before passing to GraphMaker. "
+            "'random_induced': uniform random nodes (original). "
+            "'fraud_enriched': BFS flood-fill from all SAR nodes + random filler. "
+            "'snowball': wave-by-wave expansion from top-k SAR hubs, no random filler."
+        ),
+    )
+    p.add_argument(
         "--fraud_enriched",
         action="store_true",
-        help="BFS-expand from node positives (undirected) then cap at max_nodes — higher fraud density for GraphMaker.",
+        help="Deprecated alias for --sampling fraud_enriched. Use --sampling instead.",
     )
-    p.add_argument("--neighbor_hops", type=int, default=2, help="With --fraud_enriched: BFS depth around positive nodes.")
+    p.add_argument("--neighbor_hops", type=int, default=2, help="With --sampling fraud_enriched: BFS depth around positive nodes.")
+    p.add_argument("--snowball_top_k", type=int, default=20, help="With --sampling snowball: number of SAR seed nodes ranked by degree.")
+    p.add_argument("--snowball_wave_limit", type=int, default=15, help="With --sampling snowball: max expansion waves.")
     p.add_argument("--seed", type=int, default=7)
     p.add_argument(
         "--slice_mode",
@@ -121,6 +135,9 @@ def main() -> int:
         seed=args.seed,
         fraud_enriched=bool(args.fraud_enriched),
         neighbor_hops=int(args.neighbor_hops),
+        sampling=str(args.sampling),
+        snowball_top_k=int(args.snowball_top_k),
+        snowball_wave_limit=int(args.snowball_wave_limit),
         slice_mode=str(args.slice_mode),
         balance_scan_rows=int(args.balance_scan_rows),
         target_edge_pos_fraction=float(args.target_edge_pos_fraction),

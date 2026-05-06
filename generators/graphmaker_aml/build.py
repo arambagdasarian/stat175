@@ -15,6 +15,7 @@ import torch
 
 from data.amlworld import load_amlworld_hi_small_pyg
 from generators.fraud_enriched_subgraph import extract_fraud_enriched_subgraph
+from generators.snowball_sampling import snowball_sample
 
 
 def _induced_subgraph(
@@ -93,12 +94,29 @@ def build_dgl_for_graphmaker(
     seed: int = 7,
     fraud_enriched: bool = False,
     neighbor_hops: int = 2,
+    sampling: str = "random_induced",
+    snowball_top_k: int = 20,
+    snowball_wave_limit: int = 15,
     slice_mode: str = "prefix",
     balance_scan_rows: int = 2_000_000,
     target_edge_pos_fraction: float = 0.05,
     stratify_edges_if_possible: bool = True,
     stratify_nodes_if_possible: bool = True,
 ) -> dgl.DGLGraph:
+    """
+    ``sampling`` choices
+    --------------------
+    ``'random_induced'``   – uniform random node subset (original default).
+    ``'fraud_enriched'``   – BFS from all SAR nodes + random filler (legacy flag).
+    ``'snowball'``         – wave-by-wave expansion from top-k SAR hubs; no filler.
+    ``'fraud_enriched'`` is still accepted for backward compatibility;
+    setting ``fraud_enriched=True`` (the old CLI flag) is equivalent to
+    ``sampling='fraud_enriched'``.
+    """
+    # Legacy flag maps to the named strategy.
+    if fraud_enriched and sampling == "random_induced":
+        sampling = "fraud_enriched"
+
     pyg, _ = load_amlworld_hi_small_pyg(
         data_dir,
         max_transactions=max_transactions,
@@ -109,7 +127,30 @@ def build_dgl_for_graphmaker(
         stratify_edges_if_possible=stratify_edges_if_possible,
         stratify_nodes_if_possible=stratify_nodes_if_possible,
     )
-    if fraud_enriched:
+    if sampling == "snowball":
+        sub, sub_meta = snowball_sample(
+            pyg,
+            max_nodes=max_nodes,
+            seed=seed,
+            top_k_seeds=int(snowball_top_k),
+            wave_limit=int(snowball_wave_limit),
+        )
+        print(
+            f"[snowball] nodes={sub_meta['num_nodes']}  edges={sub_meta['num_edges']}  "
+            f"density={sub_meta['density']:.2e}  "
+            f"SAR-frac={sub_meta['node_sar_fraction']:.3f}  "
+            f"fraud-edge-frac={sub_meta['edge_fraud_fraction']:.3f}  "
+            f"waves={sub_meta['waves_expanded']}",
+            flush=True,
+        )
+        ei, yn, ye, xf, eattr = (
+            sub.edge_index,
+            sub.y_node,
+            sub.y_edge,
+            sub.x,
+            sub.edge_attr,
+        )
+    elif sampling == "fraud_enriched":
         sub, _sub_meta = extract_fraud_enriched_subgraph(
             pyg, max_nodes=max_nodes, seed=seed, neighbor_hops=neighbor_hops
         )
@@ -120,7 +161,7 @@ def build_dgl_for_graphmaker(
             sub.x,
             sub.edge_attr,
         )
-    else:
+    else:  # random_induced
         ei, yn, ye, xf, eattr = _induced_subgraph(
             pyg.edge_index,
             pyg.y_node,

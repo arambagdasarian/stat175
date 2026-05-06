@@ -67,9 +67,20 @@ def main(argv: Optional[list[str]] = None) -> int:
         "--generator",
         type=str,
         default="from_pt",
-        choices=["from_pt", "degree_preserving"],
-        help="Synthetic graph: GraphMaker export (from_pt, default) or built-in degree-preserving baseline.",
+        choices=["from_pt", "degree_preserving", "snowball"],
+        help=(
+            "Synthetic graph source: 'from_pt' loads a GraphMaker .pt file, "
+            "'degree_preserving' uses the built-in degree-sequence baseline, "
+            "'snowball' extracts a dense fraud-hub subgraph via snowball sampling "
+            "and trains the GNN directly on it (no generative model needed)."
+        ),
     )
+    p.add_argument("--snowball_top_k", type=int, default=20,
+                   help="--generator snowball: top-k SAR seed nodes by degree.")
+    p.add_argument("--snowball_wave_limit", type=int, default=15,
+                   help="--generator snowball: max expansion waves.")
+    p.add_argument("--snowball_max_nodes", type=int, default=1_200,
+                   help="--generator snowball: node budget (GraphMaker N² limit; keep ≤1500).")
     p.add_argument(
         "--synthetic_pt",
         type=Path,
@@ -248,23 +259,58 @@ def main(argv: Optional[list[str]] = None) -> int:
         ckpt_dir.mkdir(parents=True, exist_ok=True)
 
     gen_cfg = None
+    snowball_bundle = None
+    snowball_meta_extra: Dict[str, Any] = {}
+
     if args.generator == "degree_preserving":
         from generators.degree_preserving import DegreePreservingGeneratorConfig
 
         gen_cfg = DegreePreservingGeneratorConfig(seed=args.seed)
+
+    elif args.generator == "snowball":
+        from generators.snowball_sampling import snowball_sample
+
+        print(
+            f"Extracting snowball subgraph "
+            f"(top_k={args.snowball_top_k}, max_nodes={args.snowball_max_nodes}) …",
+            flush=True,
+        )
+        _sb_data, snowball_meta_extra = snowball_sample(
+            real,
+            max_nodes=int(args.snowball_max_nodes),
+            seed=int(args.seed),
+            top_k_seeds=int(args.snowball_top_k),
+            wave_limit=int(args.snowball_wave_limit),
+        )
+        snowball_bundle = (_sb_data, snowball_meta_extra)
+        print(
+            f"  snowball: {snowball_meta_extra['num_nodes']} nodes, "
+            f"{snowball_meta_extra['num_edges']} edges, "
+            f"density={snowball_meta_extra['density']:.2e}, "
+            f"SAR={snowball_meta_extra['node_sar_fraction']:.1%}, "
+            f"fraud-edge={snowball_meta_extra['edge_fraud_fraction']:.1%}",
+            flush=True,
+        )
 
     result = run_transfer_experiment(
         real,
         model_cfg=ModelConfig(**mc_kwargs),
         gen_cfg=gen_cfg,
         synthetic_torch_path=synthetic_torch_path,
-        min_synthetic_nodes=int(args.min_synthetic_nodes),
+        synthetic_bundle=snowball_bundle,
+        min_synthetic_nodes=1 if snowball_bundle is not None else int(args.min_synthetic_nodes),
         device=device,
         checkpoint_dir=ckpt_dir,
     )
+    if snowball_meta_extra:
+        result["snowball_subgraph"] = snowball_meta_extra
 
     payload = {"dataset_meta": meta, "result": result}
-    tag = "graphmaker" if args.generator == "from_pt" else "degree_preserving"
+    tag = (
+        "graphmaker" if args.generator == "from_pt"
+        else "snowball" if args.generator == "snowball"
+        else "degree_preserving"
+    )
     m_tag = int(meta.get("max_transactions_loaded", max_tx or 0))
     suffix = tag
     if args.edges_only:
